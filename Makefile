@@ -14,7 +14,7 @@ SOURCES = \
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))
 
 $(BINARY): $(OBJECTS)
-		$(CC) -o $@ $^ -lgcc
+	$(CC) -o $@ $^ -lgcc
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
