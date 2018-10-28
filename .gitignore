@@ -1,0 +1,4 @@
+/bios/
+*.o
+*.swp
+*.exe
