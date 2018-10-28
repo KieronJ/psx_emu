@@ -50,6 +50,13 @@ const char *R3000_COP0_REGISTERS[R3000_NR_REGISTERS] = {
     "$err", "$err", "$err", "$err", "$err", "$err", "$err", "$err"
 };
 
+const uint32_t R3000_VIRTADDR_MASKS[8] = {
+    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,     /* KUSEG */
+    0x7fffffff,                                         /* KSEG0 */
+    0x1fffffff,                                         /* KSEG1 */
+    0xffffffff, 0xffffffff                              /* KSEG2 */
+};
+
 struct r3000 {
     uint32_t pc, next_pc;
     uint32_t gpr[R3000_NR_REGISTERS];
@@ -136,6 +143,12 @@ r3000_jump(uint32_t address)
     r3000.next_pc = address;
 }
 
+void
+r3000_branch(uint32_t offset)
+{
+    r3000.next_pc = r3000.pc + offset;
+}
+
 uint32_t
 r3000_read_reg(unsigned int reg)
 {
@@ -167,12 +180,21 @@ r3000_cop0_write(unsigned int reg, uint32_t value)
     }
 }
 
+static uint32_t
+r3000_translate_virtaddr(uint32_t address)
+{
+    uint32_t mask;
+
+    mask = R3000_VIRTADDR_MASKS[address >> 29];
+    return address & mask;
+}
+
 uint32_t
 r3000_read_code(void)
 {
     uint32_t result;
 
-    result = psx_read_memory32(r3000.pc);
+    result = psx_read_memory32(r3000_translate_virtaddr(r3000.pc));
 
     r3000.pc = r3000.next_pc;
     r3000.next_pc += 4;
@@ -188,7 +210,7 @@ r3000_read_memory32(uint32_t address)
         return 0;
     }
 
-    return psx_read_memory32(address);
+    return psx_read_memory32(r3000_translate_virtaddr(address));
 }
 
 void
@@ -199,5 +221,5 @@ r3000_write_memory32(uint32_t address, uint32_t value)
         return;
     }
 
-    psx_write_memory32(address, value);
+    psx_write_memory32(r3000_translate_virtaddr(address), value);
 }

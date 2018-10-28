@@ -5,6 +5,7 @@
 #include "r3000.h"
 #include "r3000_disassembler.h"
 #include "r3000_interpreter.h"
+#include "util.h"
 
 static void
 r3000_interpreter_j(uint32_t instruction, uint32_t address)
@@ -13,7 +14,44 @@ r3000_interpreter_j(uint32_t instruction, uint32_t address)
 
     target = R3000_TARGET(instruction);
 
+    /* TODO: Replace with next_pc */
     r3000_jump((address & 0xf0000000) | (target << 2));
+}
+
+static void
+r3000_interpreter_bne(uint32_t instruction)
+{
+    unsigned int rs, rt;    
+    uint32_t offset;
+
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    if (r3000_read_reg(rs) != r3000_read_reg(rt)) {
+        r3000_branch(offset << 2);
+    }
+}
+
+static void
+r3000_interpreter_addi(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t s, imm, result;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+
+    s = r3000_read_reg(rs);
+    imm = R3000_IMM_SE(instruction);
+    
+    result = s + imm;
+    
+    if (overflow32(s, imm, result)) {
+        PANIC;
+    }
+
+    r3000_write_reg(rt, result);
 }
 
 static void
@@ -52,6 +90,19 @@ r3000_interpreter_lui(uint32_t instruction)
     imm = R3000_IMM(instruction);
 
     r3000_write_reg(rt, imm << 16);
+}
+
+static void
+r3000_interpreter_lw(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    r3000_write_reg(rt, r3000_read_memory32(r3000_read_reg(rs) + offset));
 }
 
 static void
@@ -141,6 +192,12 @@ void r3000_interpreter_execute(void)
     case 0x02:
         r3000_interpreter_j(instruction, pc);
         break;
+    case 0x05:
+        r3000_interpreter_bne(instruction);
+        break;
+    case 0x08:
+        r3000_interpreter_addi(instruction);
+        break;
     case 0x09:
         r3000_interpreter_addiu(instruction);
         break;
@@ -152,6 +209,9 @@ void r3000_interpreter_execute(void)
         break;
     case 0x10:
         r3000_interpreter_cop0(instruction);
+        break;
+    case 0x23:
+        r3000_interpreter_lw(instruction);
         break;
     case 0x2b:
         r3000_interpreter_sw(instruction);

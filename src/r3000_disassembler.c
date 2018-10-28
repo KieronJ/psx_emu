@@ -16,6 +16,36 @@ r3000_disassembler_j(uint32_t instruction, uint32_t address)
 }
 
 static void
+r3000_disassembler_bne(uint32_t instruction, uint32_t address)
+{
+    const char *rs, *rt;
+    uint32_t offset;
+
+    rs = r3000_register_name(R3000_RS(instruction));
+    rt = r3000_register_name(R3000_RT(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    printf("BNE %s, %s, 0x%08x\n", rs, rt, address + (offset << 2) + 4);
+}
+
+static void
+r3000_disassembler_addi(uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t imm, imm_abs;
+    char *imm_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    imm = R3000_IMM_SE(instruction);
+
+    imm_sign = HEX_SIGN_32(imm);
+    imm_abs = HEX_ABS_32(imm);
+
+    printf("ADDI %s, %s, %s0x%x\n", rt, rs, imm_sign, imm_abs);
+}
+
+static void
 r3000_disassembler_addiu(uint32_t instruction)
 {
     const char *rt, *rs;
@@ -55,6 +85,23 @@ r3000_disassembler_lui(uint32_t instruction)
     imm = R3000_IMM(instruction);
 
     printf("LUI %s, 0x%04x\n", rt, imm);
+}
+
+static void
+r3000_disassembler_lw(uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    printf("LW %s, %s0x%x(%s)\n", rt, offset_sign, offset_abs, rs);
 }
 
 static void
@@ -144,6 +191,12 @@ r3000_disassembler_disassemble(uint32_t instruction, uint32_t address)
     case 0x02:
         r3000_disassembler_j(instruction, address);
         break;
+    case 0x05:
+        r3000_disassembler_bne(instruction, address);
+        break;
+    case 0x08:
+        r3000_disassembler_addi(instruction);
+        break;
     case 0x09:
         r3000_disassembler_addiu(instruction);
         break;
@@ -155,6 +208,9 @@ r3000_disassembler_disassemble(uint32_t instruction, uint32_t address)
         break;
     case 0x10:
         r3000_disassembler_cop0(instruction);
+        break;
+    case 0x23:
+        r3000_disassembler_lw(instruction);
         break;
     case 0x2b:
         r3000_disassembler_sw(instruction);

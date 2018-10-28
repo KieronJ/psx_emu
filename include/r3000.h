@@ -21,6 +21,7 @@ const char * r3000_cop0_register_name(unsigned int reg);
 
 uint32_t r3000_read_pc(void);
 void r3000_jump(uint32_t address);
+void r3000_branch(uint32_t offset);
 
 uint32_t r3000_read_reg(unsigned int reg);
 void r3000_write_reg(unsigned int reg, uint32_t value);

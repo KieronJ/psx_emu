@@ -9,7 +9,8 @@ SOURCES = \
 	src/psx.c \
 	src/r3000.c \
 	src/r3000_disassembler.c \
-	src/r3000_interpreter.c
+	src/r3000_interpreter.c \
+	src/util.c
 
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))
 

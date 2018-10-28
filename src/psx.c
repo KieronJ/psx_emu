@@ -15,8 +15,11 @@
 #define PSX_RAM_SIZE            MEGABYTES(2)
 #define PSX_MEMCTRL_SIZE        0x24
 
-#define PSX_BIOS_START          0xbfc00000
+#define PSX_BIOS_START          0x1fc00000
 #define PSX_BIOS_END            PSX_BIOS_START + PSX_BIOS_SIZE
+
+#define PSX_RAM_START           0x00000000
+#define PSX_RAM_END             PSX_RAM_START + PSX_RAM_SIZE
 
 #define PSX_MEMCTRL_START       0x1f801000
 #define PSX_MEMCTRL_END         PSX_MEMCTRL_START + PSX_MEMCTRL_SIZE
@@ -82,6 +85,11 @@ uint32_t
 psx_read_memory32(uint32_t address)
 {
     uint32_t offset;
+
+    if (between(address, PSX_RAM_START, PSX_RAM_END)) {
+        offset = (address - PSX_RAM_START) / sizeof(uint32_t);
+        return ((uint32_t *)psx.ram)[offset];
+    }
 
     if (between(address, PSX_BIOS_START, PSX_BIOS_END)) {
         offset = (address - PSX_BIOS_START) / sizeof(uint32_t);
