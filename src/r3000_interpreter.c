@@ -14,8 +14,33 @@ r3000_interpreter_j(uint32_t instruction, uint32_t address)
 
     target = R3000_TARGET(instruction);
 
-    /* TODO: Replace with next_pc */
     r3000_jump((address & 0xf0000000) | (target << 2));
+}
+
+static void
+r3000_interpreter_jal(uint32_t instruction, uint32_t address)
+{
+    uint32_t target;
+
+    target = R3000_TARGET(instruction);
+
+    r3000_write_reg(31, r3000_read_next_pc());
+    r3000_jump((address & 0xf0000000) | (target << 2));
+}
+
+static void
+r3000_interpreter_beq(uint32_t instruction)
+{
+    unsigned int rs, rt;    
+    uint32_t offset;
+
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    if (r3000_read_reg(rs) == r3000_read_reg(rt)) {
+        r3000_branch(offset << 2);
+    }
 }
 
 static void
@@ -29,6 +54,20 @@ r3000_interpreter_bne(uint32_t instruction)
     offset = R3000_IMM_SE(instruction);
 
     if (r3000_read_reg(rs) != r3000_read_reg(rt)) {
+        r3000_branch(offset << 2);
+    }
+}
+
+static void
+r3000_interpreter_bgtz(uint32_t instruction)
+{
+    unsigned int rs;    
+    uint32_t offset;
+
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    if (((int32_t)r3000_read_reg(rs)) > 0) {
         r3000_branch(offset << 2);
     }
 }
@@ -68,6 +107,19 @@ r3000_interpreter_addiu(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_andi(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t imm;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    imm = R3000_IMM(instruction);
+
+    r3000_write_reg(rt, r3000_read_reg(rs) & imm);
+}
+
+static void
 r3000_interpreter_ori(uint32_t instruction)
 {
     unsigned int rt, rs;
@@ -93,6 +145,21 @@ r3000_interpreter_lui(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_lb(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset, value;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    value = (int8_t)r3000_read_memory8(r3000_read_reg(rs) + offset);
+
+    r3000_write_reg(rt, value);
+}
+
+static void
 r3000_interpreter_lw(uint32_t instruction)
 {
     unsigned int rt, rs;
@@ -103,6 +170,32 @@ r3000_interpreter_lw(uint32_t instruction)
     offset = R3000_IMM_SE(instruction);
 
     r3000_write_reg(rt, r3000_read_memory32(r3000_read_reg(rs) + offset));
+}
+
+static void
+r3000_interpreter_sb(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    r3000_write_memory8(r3000_read_reg(rs) + offset, r3000_read_reg(rt));
+}
+
+static void
+r3000_interpreter_sh(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    r3000_write_memory16(r3000_read_reg(rs) + offset, r3000_read_reg(rt));
 }
 
 static void
@@ -119,6 +212,74 @@ r3000_interpreter_sw(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_sll(uint32_t instruction)
+{
+    unsigned int rd, rt, shift;
+
+    rd = R3000_RD(instruction);
+    rt = R3000_RT(instruction);
+    shift = R3000_SHIFT(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rt) << shift);
+}
+
+static void
+r3000_interpreter_jr(uint32_t instruction)
+{
+    unsigned int rs;
+
+    rs = R3000_RS(instruction);
+
+    r3000_jump(r3000_read_reg(rs));
+}
+
+static void
+r3000_interpreter_add(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+    uint32_t s, t, result;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    s = r3000_read_reg(rs);
+    t = r3000_read_reg(rt);
+    
+    result = s + t;
+    
+    if (overflow32(s, t, result)) {
+        PANIC;
+    }
+
+    r3000_write_reg(rd, result);
+}
+
+static void
+r3000_interpreter_addu(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rs) + r3000_read_reg(rt));
+}
+
+static void
+r3000_interpreter_and(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rs) & r3000_read_reg(rt));
+}
+
+static void
 r3000_interpreter_or(uint32_t instruction)
 {
     unsigned int rd, rs, rt;
@@ -131,11 +292,41 @@ r3000_interpreter_or(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_sltu(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rs) < r3000_read_reg(rt));
+}
+
+static void
 r3000_interpreter_special(uint32_t instruction)
 {
     switch (R3000_FUNC(instruction)) {
+    case 0x00:
+        r3000_interpreter_sll(instruction);
+        break;
+    case 0x08:
+        r3000_interpreter_jr(instruction);
+        break;
+    case 0x20:
+        r3000_interpreter_add(instruction);
+        break;
+    case 0x21:
+        r3000_interpreter_addu(instruction);
+        break;
+    case 0x24:
+        r3000_interpreter_and(instruction);
+        break;
     case 0x25:
         r3000_interpreter_or(instruction);
+        break;
+    case 0x2b:
+        r3000_interpreter_sltu(instruction);
         break;
     default:
         printf("r3000_interpreter: error: unknown instruction 0x%08x\n",
@@ -143,6 +334,17 @@ r3000_interpreter_special(uint32_t instruction)
         PANIC;
         break;
     }
+}
+
+static void
+r3000_interpreter_mfc0(uint32_t instruction)
+{
+    unsigned int rt, rd;
+
+    rt = R3000_RT(instruction);
+    rd = R3000_RD(instruction);
+
+    r3000_write_reg(rt, r3000_cop0_read(rd));
 }
 
 static void
@@ -160,6 +362,9 @@ static void
 r3000_interpreter_cop0(uint32_t instruction)
 {
     switch (R3000_RS(instruction)) {
+    case 0x00:
+        r3000_interpreter_mfc0(instruction);
+        break;
     case 0x04:
         r3000_interpreter_mtc0(instruction);
         break;
@@ -192,14 +397,26 @@ void r3000_interpreter_execute(void)
     case 0x02:
         r3000_interpreter_j(instruction, pc);
         break;
+    case 0x03:
+        r3000_interpreter_jal(instruction, pc);
+        break;
+    case 0x04:
+        r3000_interpreter_beq(instruction);
+        break;
     case 0x05:
         r3000_interpreter_bne(instruction);
+        break;
+    case 0x07:
+        r3000_interpreter_bgtz(instruction);
         break;
     case 0x08:
         r3000_interpreter_addi(instruction);
         break;
     case 0x09:
         r3000_interpreter_addiu(instruction);
+        break;
+    case 0x0c:
+        r3000_interpreter_andi(instruction);
         break;
     case 0x0d:
         r3000_interpreter_ori(instruction);
@@ -210,8 +427,17 @@ void r3000_interpreter_execute(void)
     case 0x10:
         r3000_interpreter_cop0(instruction);
         break;
+    case 0x20:
+        r3000_interpreter_lb(instruction);
+        break;
     case 0x23:
         r3000_interpreter_lw(instruction);
+        break;
+    case 0x28:
+        r3000_interpreter_sb(instruction);
+        break;
+    case 0x29:
+        r3000_interpreter_sh(instruction);
         break;
     case 0x2b:
         r3000_interpreter_sw(instruction);

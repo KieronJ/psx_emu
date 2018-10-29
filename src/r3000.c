@@ -16,6 +16,8 @@
 #define R3000_COP0_SR_TS        0x00200000
 #define R3000_COP0_SR_BEV       0x00400000
 
+#define R3000_COP0_CAUSE_IP_W   0x00000300
+
 const char *R3000_REGISTERS[R3000_NR_REGISTERS] = {
     "$zero",
     "$at",
@@ -71,6 +73,12 @@ struct r3000 {
 
 static struct r3000 r3000;
 
+static uint32_t
+r3000_cop0_sr_read(void)
+{
+    return r3000.cop0.sr;
+}
+
 static void
 r3000_cop0_sr_write(uint32_t value)
 {
@@ -83,6 +91,15 @@ static bool
 r3000_cop0_sr_isc(void)
 {
     return r3000.cop0.sr & R3000_COP0_SR_ISC;
+}
+
+static void
+r3000_cop0_cause_write(uint32_t value)
+{
+    printf("cop0: info: writing 0x%08x to cause\n", value);
+
+    r3000.cop0.cause &= ~R3000_COP0_CAUSE_IP_W;
+    r3000.cop0.cause |= (value & R3000_COP0_CAUSE_IP_W);
 }
 
 static void
@@ -137,6 +154,12 @@ r3000_read_pc(void)
     return r3000.pc;
 }
 
+uint32_t
+r3000_read_next_pc(void)
+{
+    return r3000.next_pc;
+}
+
 void
 r3000_jump(uint32_t address)
 {
@@ -165,14 +188,45 @@ r3000_write_reg(unsigned int reg, uint32_t value)
     r3000.gpr[reg] = value;
 }
 
+uint32_t
+r3000_cop0_read(unsigned int reg)
+{
+    assert(reg < R3000_NR_REGISTERS);
+
+    switch (reg) {
+    case 12:
+        return r3000_cop0_sr_read();
+    default:
+        PANIC;
+        break;
+    }
+
+    return 0;
+}
+
 void
 r3000_cop0_write(unsigned int reg, uint32_t value)
 {
     assert(reg < R3000_NR_REGISTERS);
 
     switch (reg) {
+    case 3:
+        break;
+    case 5:
+        break;
+    case 6:
+        break;
+    case 7:
+        break;
+    case 9:
+        break;
+    case 11:
+        break;
     case 12:
         r3000_cop0_sr_write(value);
+        break;
+    case 13:
+        r3000_cop0_cause_write(value);
         break;
     default:
         PANIC;
@@ -202,6 +256,17 @@ r3000_read_code(void)
     return result;
 }
 
+uint8_t
+r3000_read_memory8(uint32_t address)
+{
+    if (r3000_cop0_sr_isc()) {
+        printf("r3000: info: cache isolated read\n");
+        return 0;
+    }
+
+    return psx_read_memory8(r3000_translate_virtaddr(address));
+}
+
 uint32_t
 r3000_read_memory32(uint32_t address)
 {
@@ -211,6 +276,28 @@ r3000_read_memory32(uint32_t address)
     }
 
     return psx_read_memory32(r3000_translate_virtaddr(address));
+}
+
+void
+r3000_write_memory8(uint32_t address, uint8_t value)
+{
+    if (r3000_cop0_sr_isc()) {
+        printf("r3000: info: cache isolated write\n");
+        return;
+    }
+
+    psx_write_memory8(r3000_translate_virtaddr(address), value);
+}
+
+void
+r3000_write_memory16(uint32_t address, uint16_t value)
+{
+    if (r3000_cop0_sr_isc()) {
+        printf("r3000: info: cache isolated write\n");
+        return;
+    }
+
+    psx_write_memory16(r3000_translate_virtaddr(address), value);
 }
 
 void
