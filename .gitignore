@@ -1,4 +1,12 @@
-/bios/
+bios/
+include/GL/
+include/imgui/
+include/KHR/
+include/SDL2/
+lib/
+src/gl3w/
+src/imgui/
+*.exe
+*.ini
 *.o
 *.swp
-*.exe

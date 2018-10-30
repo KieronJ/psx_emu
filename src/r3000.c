@@ -6,9 +6,7 @@
 #include "psx.h"
 #include "r3000.h"
 
-#define R3000_NR_REGISTERS      32
 #define R3000_RESET_VECTOR      0xbfc00000
-
 
 #define R3000_COP0_SR_IEC       0x00000001
 #define R3000_COP0_SR_KUC       0x00000002
@@ -19,7 +17,7 @@
 #define R3000_COP0_CAUSE_IP_W   0x00000300
 
 const char *R3000_REGISTERS[R3000_NR_REGISTERS] = {
-    "$zero",
+    "$zr",
     "$at",
     "$v0", "$v1",
     "$a0", "$a1", "$a2", "$a3",
@@ -103,7 +101,7 @@ r3000_cop0_cause_write(uint32_t value)
 }
 
 static void
-r3000_cop0_reset(uint32_t pc)
+r3000_cop0_soft_reset(uint32_t pc)
 {
     r3000.cop0.sr |= R3000_COP0_SR_BEV;         /* Set 'Boot Exception Vectors' flag */
     r3000.cop0.sr |= R3000_COP0_SR_TS;          /* Set 'TLB Shutdown' flag */
@@ -113,23 +111,39 @@ r3000_cop0_reset(uint32_t pc)
     r3000.cop0.epc = pc;
 }
 
-void
-r3000_setup(void)
+static void
+r3000_cop0_hard_reset(void)
 {
-    r3000_reset();
-    r3000_cop0_reset(r3000.pc);
-
-    memset(r3000.gpr, 0, sizeof(r3000.gpr));
-
-    r3000.lo = 0;
-    r3000.hi = 0;
+    r3000.cop0.sr = 0;
+    r3000.cop0.cause = 0;
+    r3000.cop0.epc = 0;
 }
 
 void
-r3000_reset(void)
+r3000_setup(void)
 {
+    r3000_hard_reset();
+}
+
+void
+r3000_soft_reset(void)
+{
+    r3000_cop0_soft_reset(r3000.pc);
+
     r3000.pc = R3000_RESET_VECTOR;
     r3000.next_pc = r3000.pc + 4;
+}
+
+void
+r3000_hard_reset(void)
+{
+    r3000_cop0_hard_reset();
+
+    memset(r3000.gpr, 0, sizeof(r3000.gpr));
+    r3000.lo = 0;
+    r3000.hi = 0;
+
+    r3000_soft_reset();
 }
 
 const char *
@@ -185,7 +199,23 @@ r3000_write_reg(unsigned int reg, uint32_t value)
 {
     assert(reg < R3000_NR_REGISTERS);
 
+    if (reg == 0) {
+        return;
+    }
+
     r3000.gpr[reg] = value;
+}
+
+uint32_t
+r3000_read_hi(void)
+{
+    return r3000.hi;
+}
+
+uint32_t
+r3000_read_lo(void)
+{
+    return r3000.lo;
 }
 
 uint32_t
@@ -309,4 +339,10 @@ r3000_write_memory32(uint32_t address, uint32_t value)
     }
 
     psx_write_memory32(r3000_translate_virtaddr(address), value);
+}
+
+uint32_t
+r3000_debug_read_memory32(uint32_t address)
+{
+    return psx_debug_read_memory32(r3000_translate_virtaddr(address));
 }
