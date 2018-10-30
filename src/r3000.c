@@ -6,6 +6,9 @@
 #include "psx.h"
 #include "r3000.h"
 
+#define R3000_REGISTER_HI       32
+#define R3000_REGISTER_LO       33
+
 #define R3000_RESET_VECTOR      0xbfc00000
 
 #define R3000_COP0_SR_IEC       0x00000001
@@ -28,10 +31,11 @@ const char *R3000_REGISTERS[R3000_NR_REGISTERS] = {
     "$gp",
     "$sp",
     "$fp",
-    "$ra"
+    "$ra",
+    "$hi", "$lo"
 };
 
-const char *R3000_COP0_REGISTERS[R3000_NR_REGISTERS] = {
+const char *R3000_COP0_REGISTERS[R3000_COP0_NR_REGISTERS] = {
     "$err", "$err", "$err",
     "$bpc",
     "$err",
@@ -60,7 +64,6 @@ const uint32_t R3000_VIRTADDR_MASKS[8] = {
 struct r3000 {
     uint32_t pc, next_pc;
     uint32_t gpr[R3000_NR_REGISTERS];
-    uint32_t lo, hi;
 
     struct {
         uint32_t sr;
@@ -140,8 +143,6 @@ r3000_hard_reset(void)
     r3000_cop0_hard_reset();
 
     memset(r3000.gpr, 0, sizeof(r3000.gpr));
-    r3000.lo = 0;
-    r3000.hi = 0;
 
     r3000_soft_reset();
 }
@@ -204,18 +205,6 @@ r3000_write_reg(unsigned int reg, uint32_t value)
     }
 
     r3000.gpr[reg] = value;
-}
-
-uint32_t
-r3000_read_hi(void)
-{
-    return r3000.hi;
-}
-
-uint32_t
-r3000_read_lo(void)
-{
-    return r3000.lo;
 }
 
 uint32_t

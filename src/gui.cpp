@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <SDL2/SDL.h>
 
@@ -21,6 +23,9 @@ struct gui_state {
     bool debug_cpu;
     bool debug_ram;
     bool debug_bios;
+
+    bool debug_modify_register;
+    int debug_modify_register_value;
 };
 
 static struct gui_state gui_state;
@@ -74,9 +79,9 @@ gui_render_debug_cpu_actions(void)
 {
     const char *button_text;
 
-    ImGui::BeginChild("Actions", ImVec2(235, 42), true);
+    ImGui::BeginChild("Actions", ImVec2(235, 30));
 
-    if (ImGui::Button("Reset", ImVec2(67, 25))) {
+    if (ImGui::Button("Reset", ImVec2(70, 25))) {
         psx_soft_reset();
     }
 	
@@ -84,13 +89,13 @@ gui_render_debug_cpu_actions(void)
 	
     button_text = gui_state.should_run_frame ? "Break" : "Continue";
 
-    if (ImGui::Button(button_text, ImVec2(67, 25))) {
+    if (ImGui::Button(button_text, ImVec2(70, 25))) {
         gui_state.should_run_frame = !gui_state.should_run_frame;
     }
     
     ImGui::SameLine();
 
-    if (ImGui::Button("Step", ImVec2(67, 25))) {
+    if (ImGui::Button("Step", ImVec2(70, 25))) {
         gui_state.should_run_frame = false;
         psx_step();
     }
@@ -99,25 +104,80 @@ gui_render_debug_cpu_actions(void)
 }
 
 static void
-gui_render_debug_cpu_registers()
+gui_render_modify_register(void)
 {
-    ImGui::BeginChild("Registers", ImVec2(235, 302), true);
+    static char text[9] = "";
 
-    for (int i = 0; i < R3000_NR_REGISTERS; i+=2) {
-        ImGui::Text("%s: 0x%08x", r3000_register_name(i), r3000_read_reg(i));
+    unsigned int reg;
+    const char *reg_name;
+    char message[20];
+    ImGuiWindowFlags window_flags;
+    ImGuiInputTextFlags input_flags;
+
+    reg = gui_state.debug_modify_register_value;
+    reg_name = r3000_register_name(reg);
+    snprintf(message, sizeof(message), "Set register %s", reg_name);
+    window_flags = ImGuiWindowFlags_AlwaysAutoResize;
+    input_flags = ImGuiInputTextFlags_CharsHexadecimal;
+
+    ImGui::OpenPopup(message);
+
+    if (ImGui::BeginPopupModal(message, NULL, window_flags)) {
+        ImGui::InputText("", text, sizeof(text), input_flags);
+
+        if (ImGui::Button("Set")) { 
+            if (strlen(text) != 0) {
+                r3000_write_reg(reg, strtoul(text, NULL, 16));
+                gui_state.debug_modify_register = false;
+                memset(text, 0, sizeof(text));
+            }
+        }
+
         ImGui::SameLine();
-        ImGui::Text("%s: 0x%08x", r3000_register_name(i+1), r3000_read_reg(i+1));
-    }
-    
-    ImGui::Text("$hi: 0x%08x", r3000_read_lo());
-    ImGui::SameLine();
-    ImGui::Text("$lo: 0x%08x", r3000_read_lo());
 
+        if (ImGui::Button("Cancel")) {
+            gui_state.debug_modify_register = false;
+            memset(text, 0, sizeof(text));
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+static void
+gui_render_debug_cpu_register(unsigned int i)
+{
+    char text[32];
+    ImGuiSelectableFlags flags;
+
+    snprintf(text, 32, "%s: 0x%08x", r3000_register_name(i), r3000_read_reg(i));
+    flags = ImGuiSelectableFlags_AllowDoubleClick;
+
+    if(ImGui::Selectable(text, false, flags)) {
+        if (ImGui::IsMouseDoubleClicked(0)) {
+            gui_state.debug_modify_register = true;
+            gui_state.debug_modify_register_value = i;
+        }    
+    }
+}
+
+static void
+gui_render_debug_cpu_registers(void)
+{
+    ImGui::BeginChild("Registers", ImVec2(235, 302));
+    ImGui::Columns(2);
+
+    for (int i = 0; i < R3000_NR_REGISTERS; i++) {
+        gui_render_debug_cpu_register(i);
+        ImGui::NextColumn();
+    }
+   
+    ImGui::Columns(1);
     ImGui::EndChild();
 }
 
 static void
-gui_render_debug_cpu_disasm()
+gui_render_debug_cpu_disasm(void)
 {
     ImGui::BeginChild("Disassembly", ImVec2(400, 437), true);
 
@@ -207,6 +267,10 @@ gui_render(SDL_Window *window)
 
     if (gui_state.debug_bios) {
         gui_memedit_bios.DrawWindow("BIOS", psx_debug_bios(), PSX_BIOS_SIZE);
+    }
+
+    if (gui_state.debug_modify_register) {
+        gui_render_modify_register();
     }
 
     ImGui::Render();

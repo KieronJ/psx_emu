@@ -87,10 +87,16 @@ window_update(void)
         case SDL_QUIT:
             quit = true;
             break;
+
         case SDL_KEYUP:
             if (event.key.keysym.sym == SDLK_ESCAPE) {
                 quit = true;
             }
+            break;
+
+        case SDL_DROPFILE:
+            printf("window: info: dropped file %s\n", event.drop.file);
+            SDL_free(event.drop.file);
             break;
         }
     }
