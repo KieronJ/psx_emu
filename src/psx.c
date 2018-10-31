@@ -5,17 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "exp2.h"
 #include "macros.h"
 #include "psx.h"
 #include "r3000.h"
 #include "r3000_interpreter.h"
 #include "util.h"
 
+#define PSX_FORCE_TTY
+
 #define PSX_REFRESH_RATE        60
 #define PSX_CYCLES_PER_REFRESH  (R3000_FREQ / PSX_REFRESH_RATE)
 
 #define PSX_EXP1_SIZE           MEGABYTES(8)
 #define PSX_MEMCTRL_SIZE        0x24
+#define PSX_DMA_SIZE            0x80
+#define PSX_TIMER_SIZE          0x30
 #define PSX_SPU_SIZE            KILOBYTES(1)
 #define PSX_EXP2_SIZE           KILOBYTES(8)
 
@@ -32,6 +37,12 @@
 
 #define PSX_INTERRUPT_STATUS    0x1f801070
 #define PSX_INTERRUPT_MASK      0x1f801074
+
+#define PSX_DMA_START           0x1f801080
+#define PSX_DMA_END             PSX_DMA_START + PSX_DMA_SIZE
+
+#define PSX_TIMER_START         0x1f801100
+#define PSX_TIMER_END           PSX_TIMER_START + PSX_TIMER_SIZE
 
 #define PSX_SPU_START           0x1f801c00
 #define PSX_SPU_END             PSX_SPU_START + PSX_SPU_SIZE
@@ -92,6 +103,7 @@ void
 psx_setup(const char *bios_path)
 {
     r3000_setup();
+    exp2_setup();
 
     psx.bios = malloc(PSX_BIOS_SIZE);
     psx.ram = malloc(PSX_RAM_SIZE);
@@ -103,6 +115,12 @@ psx_setup(const char *bios_path)
 
     psx_reset_memory();
     psx_load_bios(bios_path);
+
+#ifdef PSX_FORCE_TTY
+    /* Patch BIOS to enable TTY output */
+    ((uint32_t *)psx.bios)[0x1bc3] = 0x24010001; /* ADDIU $at, $zero, 0x1 */
+    ((uint32_t *)psx.bios)[0x1bc5] = 0xaf81a9c0; /* SW $at, -0x5640($gp) */
+#endif
 }
 
 void
@@ -137,7 +155,7 @@ psx_step(void)
 void
 psx_run_frame(void)
 {
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < PSX_CYCLES_PER_REFRESH; ++i) {
         //printf("%f\n", (float)i / (float)PSX_CYCLES_PER_REFRESH);
         psx_step();
     }
@@ -153,13 +171,40 @@ psx_read_memory8(uint32_t address)
         return ((uint8_t *)psx.ram)[offset];
     }
 
+    if (between(address, PSX_EXP1_START, PSX_EXP1_END)) {
+        printf("psx: info: read from exp1 register at 0x%08x\n", address);
+        return 0;
+    }
+
+    if (between(address, PSX_EXP2_START, PSX_EXP2_END)) {
+        return exp2_read8(address);
+    }
+
     if (between(address, PSX_BIOS_START, PSX_BIOS_END)) {
         offset = (address - PSX_BIOS_START) / sizeof(uint8_t);
         return ((uint8_t *)psx.bios)[offset];
     }
 
-    if (between(address, PSX_EXP1_START, PSX_EXP1_END)) {
-        printf("psx: info: write to exp1 register at 0x%08x\n", address);
+    
+
+    printf("psx: error: unknown read address 0x%08x\n", address);
+    PANIC;
+
+    return 0;
+}
+
+uint16_t
+psx_read_memory16(uint32_t address)
+{
+    uint32_t offset;
+
+    if (between(address, PSX_RAM_START, PSX_RAM_END)) {
+        offset = (address - PSX_RAM_START) / sizeof(uint16_t);
+        return ((uint16_t *)psx.ram)[offset];
+    }
+
+    if (between(address, PSX_SPU_START, PSX_SPU_END)) {
+        printf("psx: info: read from spu register at 0x%08x\n", address);
         return 0;
     }
 
@@ -184,6 +229,19 @@ psx_read_memory32(uint32_t address)
         return ((uint32_t *)psx.bios)[offset];
     }
 
+    if (address == PSX_INTERRUPT_STATUS) {
+        return psx.interrupt.status;
+    }
+
+    if (address == PSX_INTERRUPT_MASK) {
+        return psx.interrupt.mask;
+    }
+
+    if (between(address, PSX_DMA_START, PSX_DMA_END)) {
+        printf("psx: info: read from dma register at 0x%08x\n", address);
+        return 0;
+    }
+
     printf("psx: error: unknown read address 0x%08x\n", address);
     PANIC;
 
@@ -202,7 +260,7 @@ psx_write_memory8(uint32_t address, uint8_t value)
     }
 
     if (between(address, PSX_EXP2_START, PSX_EXP2_END)) {
-        printf("psx: info: write to exp2 register at 0x%08x\n", address);
+        exp2_write8(address, value);
         return;
     }
 
@@ -213,7 +271,18 @@ psx_write_memory8(uint32_t address, uint8_t value)
 void
 psx_write_memory16(uint32_t address, uint16_t value)
 {
-    (void)value;
+    uint32_t offset;
+
+    if (between(address, PSX_RAM_START, PSX_RAM_END)) {
+        offset = (address - PSX_RAM_START) / sizeof(uint16_t);
+        ((uint16_t *)psx.ram)[offset] = value;
+        return;
+    }
+
+    if (between(address, PSX_TIMER_START, PSX_TIMER_END)) {
+        printf("psx: info: write to timer register at 0x%08x\n", address);
+        return;
+    }
 
     if (between(address, PSX_SPU_START, PSX_SPU_END)) {
         printf("psx: info: write to spu register at 0x%08x\n", address);
@@ -257,6 +326,11 @@ psx_write_memory32(uint32_t address, uint32_t value)
 
     if (address == PSX_INTERRUPT_MASK) {
         psx.interrupt.mask = value;
+        return;
+    }
+
+    if (between(address, PSX_DMA_START, PSX_DMA_END)) {
+        printf("psx: info: write to dma register at 0x%08x\n", address);
         return;
     }
 

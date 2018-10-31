@@ -30,7 +30,6 @@ struct gui_state {
 
 static struct gui_state gui_state;
 
-static char gui_disasm_buf[64];
 
 static MemoryEditor gui_memedit_ram;
 static MemoryEditor gui_memedit_bios;
@@ -150,7 +149,8 @@ gui_render_debug_cpu_register(unsigned int i)
     char text[32];
     ImGuiSelectableFlags flags;
 
-    snprintf(text, 32, "%s: 0x%08x", r3000_register_name(i), r3000_read_reg(i));
+    snprintf(text, 32, "%s: 0x%08x",
+             r3000_register_name(i), r3000_read_reg(i));
     flags = ImGuiSelectableFlags_AllowDoubleClick;
 
     if(ImGui::Selectable(text, false, flags)) {
@@ -179,26 +179,30 @@ gui_render_debug_cpu_registers(void)
 static void
 gui_render_debug_cpu_disasm(void)
 {
+    uint32_t pc, len, instruction;
+    uint32_t b0, b1, b2, b3;
+    char disasm_buf[64];
+    char is_pc;
+
     ImGui::BeginChild("Disassembly", ImVec2(400, 437), true);
 
-    uint32_t pc = r3000_read_pc();
-    uint32_t len = 12 * sizeof(uint32_t);
+    pc = r3000_read_pc();
+    len = 12 * sizeof(uint32_t);
 
     for (uint32_t i = pc - len; i <= pc + len; i += sizeof(uint32_t)) {
-        uint32_t instruction = r3000_debug_read_memory32(i);
-
-        uint8_t b0, b1, b2, b3;
+        instruction = r3000_debug_read_memory32(i);
 
         b0 = instruction >> 24;
         b1 = instruction >> 16;
         b2 = instruction >>  8;
         b3 = instruction >>  0;
 
-        char is_pc = i == pc ? '*' : ' ';
+        is_pc = i == pc ? '*' : ' ';
 
-        r3000_disassembler_disassemble(gui_disasm_buf, 64, instruction, i);
+        r3000_disassembler_disassemble(disasm_buf, sizeof(disasm_buf),
+                                       instruction, i);
         ImGui::Text("%c 0x%08x:  %02x %02x %02x %02x  %s", is_pc, i,
-                    b0, b1, b2, b3, gui_disasm_buf);
+                    b0, b1, b2, b3, disasm_buf);
     }
 
     ImGui::EndChild();

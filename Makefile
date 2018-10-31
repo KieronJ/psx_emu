@@ -10,6 +10,7 @@ LDFLAGS = -lgcc -lSDL2 -lopengl32
 BINARY = psx_emu
 
 SOURCES = \
+	src/exp2.c \
 	src/gui.cpp \
 	src/main.c \
 	src/psx.c \
