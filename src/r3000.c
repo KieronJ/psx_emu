@@ -435,3 +435,9 @@ r3000_debug_read_memory32(uint32_t address)
 {
     return psx_debug_read_memory32(r3000_translate_virtaddr(address));
 }
+
+void
+r3000_debug_write_memory32(uint32_t address, uint32_t value)
+{
+    psx_debug_write_memory32(r3000_translate_virtaddr(address), value);
+}

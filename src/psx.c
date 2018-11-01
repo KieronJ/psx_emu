@@ -116,8 +116,7 @@ psx_setup(const char *bios_path)
     psx_reset_memory();
     psx_load_bios(bios_path);
 
-#ifdef PSX_FORCE_TTY
-    /* Patch BIOS to enable TTY output */
+#ifdef PSX_FORCE_TTY /* Patch BIOS to enable TTY output */
     ((uint32_t *)psx.bios)[0x1bc3] = 0x24010001; /* ADDIU $at, $zero, 0x1 */
     ((uint32_t *)psx.bios)[0x1bc5] = 0xaf81a9c0; /* SW $at, -0x5640($gp) */
 #endif
@@ -155,7 +154,7 @@ psx_step(void)
 void
 psx_run_frame(void)
 {
-    for (int i = 0; i < PSX_CYCLES_PER_REFRESH; ++i) {
+    for (int i = 0; i < 100; ++i) {
         //printf("%f\n", (float)i / (float)PSX_CYCLES_PER_REFRESH);
         psx_step();
     }
@@ -377,6 +376,24 @@ psx_debug_read_memory32(uint32_t address)
     }
 
     return 0;
+}
+
+void
+psx_debug_write_memory32(uint32_t address, uint32_t value)
+{
+    uint32_t offset;
+
+    if (between(address, PSX_RAM_START, PSX_RAM_END)) {
+        offset = (address - PSX_RAM_START) / sizeof(uint32_t);
+        ((uint32_t *)psx.ram)[offset] = value;
+        return;
+    }
+
+    if (between(address, PSX_BIOS_START, PSX_BIOS_END)) {
+        offset = (address - PSX_BIOS_START) / sizeof(uint32_t);
+        ((uint32_t *)psx.bios)[offset] = value;
+        return;
+    }
 }
 
 uint8_t *
