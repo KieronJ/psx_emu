@@ -44,6 +44,11 @@
 #define PSX_TIMER_START         0x1f801100
 #define PSX_TIMER_END           PSX_TIMER_START + PSX_TIMER_SIZE
 
+#define PSX_GPUREAD             0x1f801810
+#define PSX_GP0                 0x1f801810
+#define PSX_GPUSTAT             0x1f801814
+#define PSX_GP1                 0x1f801814
+
 #define PSX_SPU_START           0x1f801c00
 #define PSX_SPU_END             PSX_SPU_START + PSX_SPU_SIZE
 
@@ -154,7 +159,7 @@ psx_step(void)
 void
 psx_run_frame(void)
 {
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < PSX_CYCLES_PER_REFRESH; ++i) {
         //printf("%f\n", (float)i / (float)PSX_CYCLES_PER_REFRESH);
         psx_step();
     }
@@ -184,8 +189,6 @@ psx_read_memory8(uint32_t address)
         return ((uint8_t *)psx.bios)[offset];
     }
 
-    
-
     printf("psx: error: unknown read address 0x%08x\n", address);
     PANIC;
 
@@ -200,6 +203,10 @@ psx_read_memory16(uint32_t address)
     if (between(address, PSX_RAM_START, PSX_RAM_END)) {
         offset = (address - PSX_RAM_START) / sizeof(uint16_t);
         return ((uint16_t *)psx.ram)[offset];
+    }
+
+    if (address == PSX_INTERRUPT_MASK) {
+        return psx.interrupt.mask;
     }
 
     if (between(address, PSX_SPU_START, PSX_SPU_END)) {
@@ -241,6 +248,16 @@ psx_read_memory32(uint32_t address)
         return 0;
     }
 
+    if (address == PSX_GPUREAD) {
+        printf("psx: info: read from gpuread\n");
+        return 0;
+    }
+
+    if (address == PSX_GPUSTAT) {
+        //printf("psx: info: read from gpustat\n");
+        return 0;
+    }
+
     printf("psx: error: unknown read address 0x%08x\n", address);
     PANIC;
 
@@ -275,6 +292,12 @@ psx_write_memory16(uint32_t address, uint16_t value)
     if (between(address, PSX_RAM_START, PSX_RAM_END)) {
         offset = (address - PSX_RAM_START) / sizeof(uint16_t);
         ((uint16_t *)psx.ram)[offset] = value;
+        return;
+    }
+
+    if (address == PSX_INTERRUPT_MASK) {
+        psx.interrupt.mask &= 0xffff0000;
+        psx.interrupt.mask |= value;
         return;
     }
 
@@ -330,6 +353,21 @@ psx_write_memory32(uint32_t address, uint32_t value)
 
     if (between(address, PSX_DMA_START, PSX_DMA_END)) {
         printf("psx: info: write to dma register at 0x%08x\n", address);
+        return;
+    }
+
+    if (between(address, PSX_TIMER_START, PSX_TIMER_END)) {
+        printf("psx: info: write to timer register at 0x%08x\n", address);
+        return;
+    }
+
+    if (address == PSX_GP0) {
+        printf("psx: info: write to gp0\n");
+        return;
+    }
+
+    if (address == PSX_GP1) {
+        printf("psx: info: write to gp1\n");
         return;
     }
 

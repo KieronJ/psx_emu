@@ -57,7 +57,7 @@ r3000_interpreter_jal(uint32_t instruction, uint32_t address)
 static void
 r3000_interpreter_beq(uint32_t instruction)
 {
-    unsigned int rs, rt;    
+    unsigned int rs, rt;
     uint32_t offset;
 
     rs = R3000_RS(instruction);
@@ -72,7 +72,7 @@ r3000_interpreter_beq(uint32_t instruction)
 static void
 r3000_interpreter_bne(uint32_t instruction)
 {
-    unsigned int rs, rt;    
+    unsigned int rs, rt;
     uint32_t offset;
 
     rs = R3000_RS(instruction);
@@ -87,7 +87,7 @@ r3000_interpreter_bne(uint32_t instruction)
 static void
 r3000_interpreter_blez(uint32_t instruction)
 {
-    unsigned int rs;    
+    unsigned int rs;
     uint32_t offset;
 
     rs = R3000_RS(instruction);
@@ -101,7 +101,7 @@ r3000_interpreter_blez(uint32_t instruction)
 static void
 r3000_interpreter_bgtz(uint32_t instruction)
 {
-    unsigned int rs;    
+    unsigned int rs;
     uint32_t offset;
 
     rs = R3000_RS(instruction);
@@ -123,9 +123,9 @@ r3000_interpreter_addi(uint32_t instruction)
 
     s = r3000_read_reg(rs);
     imm = R3000_IMM_SE(instruction);
-    
+
     result = s + imm;
-    
+
     if (overflow32(s, imm, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
@@ -322,7 +322,7 @@ r3000_interpreter_sh(uint32_t instruction)
     rs = R3000_RS(instruction);
     offset = R3000_IMM_SE(instruction);
 
-    address = r3000_read_reg(rs) + offset; 
+    address = r3000_read_reg(rs) + offset;
 
     if (address & 0x1) {
         r3000_exception(R3000_EXCEPTION_ADDRESS_STORE);
@@ -342,7 +342,7 @@ r3000_interpreter_sw(uint32_t instruction)
     rs = R3000_RS(instruction);
     offset = R3000_IMM_SE(instruction);
 
-    address = r3000_read_reg(rs) + offset; 
+    address = r3000_read_reg(rs) + offset;
 
     if (address & 0x3) {
         r3000_exception(R3000_EXCEPTION_ADDRESS_STORE);
@@ -389,6 +389,42 @@ r3000_interpreter_sra(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_sllv(uint32_t instruction)
+{
+    unsigned int rd, rt, rs;
+
+    rd = R3000_RD(instruction);
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rt) << r3000_read_reg(rs));
+}
+
+static void
+r3000_interpreter_srlv(uint32_t instruction)
+{
+    unsigned int rd, rt, rs;
+
+    rd = R3000_RD(instruction);
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rt) >> r3000_read_reg(rs));
+}
+
+static void
+r3000_interpreter_srav(uint32_t instruction)
+{
+    unsigned int rd, rt, rs;
+
+    rd = R3000_RD(instruction);
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+
+    r3000_write_reg(rd, (int32_t)r3000_read_reg(rt) >> r3000_read_reg(rs));
+}
+
+static void
 r3000_interpreter_jr(uint32_t instruction)
 {
     unsigned int rs;
@@ -431,7 +467,7 @@ static void
 r3000_interpreter_mfhi(uint32_t instruction)
 {
     unsigned int rd;
-    
+
     rd = R3000_RD(instruction);
 
     r3000_write_reg(rd, r3000_read_reg(R3000_REGISTER_HI));
@@ -441,7 +477,7 @@ static void
 r3000_interpreter_mthi(uint32_t instruction)
 {
     unsigned int rs;
-    
+
     rs = R3000_RS(instruction);
 
     r3000_write_reg(R3000_REGISTER_HI, r3000_read_reg(rs));
@@ -451,7 +487,7 @@ static void
 r3000_interpreter_mflo(uint32_t instruction)
 {
     unsigned int rd;
-    
+
     rd = R3000_RD(instruction);
 
     r3000_write_reg(rd, r3000_read_reg(R3000_REGISTER_LO));
@@ -461,10 +497,44 @@ static void
 r3000_interpreter_mtlo(uint32_t instruction)
 {
     unsigned int rs;
-    
+
     rs = R3000_RS(instruction);
 
     r3000_write_reg(R3000_REGISTER_LO, r3000_read_reg(rs));
+}
+
+static void
+r3000_interpreter_mult(uint32_t instruction)
+{
+    unsigned int rs, rt;
+    int64_t a, b;
+    uint64_t result;
+
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    a = (int32_t)r3000_read_reg(rs);
+    b = (int32_t)r3000_read_reg(rt);
+
+    result = a * b;
+
+    r3000_write_reg(R3000_REGISTER_HI, result >> 32);
+    r3000_write_reg(R3000_REGISTER_LO, result);
+}
+
+static void
+r3000_interpreter_multu(uint32_t instruction)
+{
+    unsigned int rs, rt;
+    uint64_t result;
+
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    result = r3000_read_reg(rs) * r3000_read_reg(rt);
+
+    r3000_write_reg(R3000_REGISTER_HI, result >> 32);
+    r3000_write_reg(R3000_REGISTER_LO, result);
 }
 
 static void
@@ -478,7 +548,7 @@ r3000_interpreter_div(uint32_t instruction)
 
     n = r3000_read_reg(rs);
     d = r3000_read_reg(rt);
-    
+
     if (d == 0) {
         r3000_write_reg(R3000_REGISTER_HI, n);
         r3000_write_reg(R3000_REGISTER_LO, n >= 0 ? -1 : 1);
@@ -502,7 +572,7 @@ r3000_interpreter_divu(uint32_t instruction)
 
     n = r3000_read_reg(rs);
     d = r3000_read_reg(rt);
-    
+
     if (d == 0) {
         r3000_write_reg(R3000_REGISTER_HI, n);
         r3000_write_reg(R3000_REGISTER_LO, -1);
@@ -524,9 +594,9 @@ r3000_interpreter_add(uint32_t instruction)
 
     s = r3000_read_reg(rs);
     t = r3000_read_reg(rt);
-    
+
     result = s + t;
-    
+
     if (overflow32(s, t, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
@@ -558,9 +628,9 @@ r3000_interpreter_sub(uint32_t instruction)
 
     s = r3000_read_reg(rs);
     t = r3000_read_reg(rt);
-    
+
     result = s - t;
-    
+
     if (overflow32(s, t, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
@@ -605,6 +675,30 @@ r3000_interpreter_or(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_xor(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    r3000_write_reg(rd, r3000_read_reg(rs) ^ r3000_read_reg(rt));
+}
+
+static void
+r3000_interpreter_nor(uint32_t instruction)
+{
+    unsigned int rd, rs, rt;
+
+    rd = R3000_RD(instruction);
+    rs = R3000_RS(instruction);
+    rt = R3000_RT(instruction);
+
+    r3000_write_reg(rd, ~(r3000_read_reg(rs) | r3000_read_reg(rt)));
+}
+
+static void
 r3000_interpreter_slt(uint32_t instruction)
 {
     unsigned int rd, rs, rt;
@@ -644,6 +738,15 @@ r3000_interpreter_special(uint32_t instruction)
     case 0x03:
         r3000_interpreter_sra(instruction);
         break;
+    case 0x04:
+        r3000_interpreter_sllv(instruction);
+        break;
+    case 0x06:
+        r3000_interpreter_srlv(instruction);
+        break;
+    case 0x07:
+        r3000_interpreter_srav(instruction);
+        break;
     case 0x08:
         r3000_interpreter_jr(instruction);
         break;
@@ -668,6 +771,12 @@ r3000_interpreter_special(uint32_t instruction)
     case 0x13:
         r3000_interpreter_mtlo(instruction);
         break;
+    case 0x18:
+        r3000_interpreter_mult(instruction);
+        break;
+    case 0x19:
+        r3000_interpreter_multu(instruction);
+        break;
     case 0x1a:
         r3000_interpreter_div(instruction);
         break;
@@ -691,6 +800,12 @@ r3000_interpreter_special(uint32_t instruction)
         break;
     case 0x25:
         r3000_interpreter_or(instruction);
+        break;
+    case 0x26:
+        r3000_interpreter_xor(instruction);
+        break;
+    case 0x27:
+        r3000_interpreter_nor(instruction);
         break;
     case 0x2a:
         r3000_interpreter_slt(instruction);
@@ -764,7 +879,7 @@ void r3000_interpreter_execute(void)
 
     //char disasm_buf[64];
 
-    pc = r3000_read_pc(); 
+    pc = r3000_read_pc();
     instruction = r3000_read_code();
 
     //r3000_disassembler_disassemble(disasm_buf, sizeof(disasm_buf),
@@ -827,6 +942,9 @@ void r3000_interpreter_execute(void)
         break;
     case 0x20:
         r3000_interpreter_lb(instruction);
+        break;
+    case 0x21:
+        r3000_interpreter_lh(instruction);
         break;
     case 0x23:
         r3000_interpreter_lw(instruction);

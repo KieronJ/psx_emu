@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "exp2.h"
+#include "gui.h"
 #include "macros.h"
 
 #define EXP2_BASE               0x1f802000
@@ -24,7 +25,7 @@
 #define EXP2_DUART_SR_TXRDY     0x4
 #define EXP2_DUART_SR_TXEMT     0x8
 
-#define EXP2_TX_BUF_SIZE        64
+#define EXP2_TX_BUF_SIZE        128
 
 static char exp2_tx_buf[EXP2_TX_BUF_SIZE];
 static int exp2_tx_buf_len;
@@ -41,7 +42,7 @@ exp2_tx_byte(char byte)
     if (byte == '\n') {
         if (exp2_tx_buf_len != 0) {
             exp2_tx_byte('\0');
-            printf("exp2: stdout: %s\n", exp2_tx_buf);
+            gui_add_tty_entry(exp2_tx_buf, exp2_tx_buf_len);
             exp2_tx_buf_len = 0;
         }
 

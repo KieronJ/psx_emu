@@ -19,15 +19,15 @@ main(int argc, char **argv)
     psx_setup(argv[1]);
 
     for (;;) {
-        if (gui_should_run_frame()) {
+        if (gui_should_continue()) {
             psx_run_frame();
         }
-
-        fflush(stdout);
 
         if (window_update() || gui_should_quit()) {
             break;
         }
+
+        fflush(stdout);
     }
 
     printf("main: info: shutting down\n");

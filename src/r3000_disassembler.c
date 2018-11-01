@@ -491,6 +491,29 @@ r3000_disassembler_mtlo(char *buf, size_t n, uint32_t instruction)
 }
 
 static void
+r3000_disassembler_mult(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rs, *rt;
+
+    rs = r3000_register_name(R3000_RS(instruction));
+    rt = r3000_register_name(R3000_RT(instruction));
+
+    snprintf(buf, n, "MULT %s, %s", rs, rt);
+}
+
+static void
+r3000_disassembler_multu(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rs, *rt;
+
+    rs = r3000_register_name(R3000_RS(instruction));
+    rt = r3000_register_name(R3000_RT(instruction));
+
+    snprintf(buf, n, "MULTU %s, %s", rs, rt);
+}
+
+
+static void
 r3000_disassembler_div(char *buf, size_t n, uint32_t instruction)
 {
     const char *rs, *rt;
@@ -585,6 +608,30 @@ r3000_disassembler_or(char *buf, size_t n, uint32_t instruction)
 }
 
 static void
+r3000_disassembler_xor(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rd, *rs, *rt;
+
+    rd = r3000_register_name(R3000_RD(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    rt = r3000_register_name(R3000_RT(instruction));
+
+    snprintf(buf, n, "XOR %s, %s, %s", rd, rs, rt);
+}
+
+static void
+r3000_disassembler_nor(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rd, *rs, *rt;
+
+    rd = r3000_register_name(R3000_RD(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    rt = r3000_register_name(R3000_RT(instruction));
+
+    snprintf(buf, n, "NOR %s, %s, %s", rd, rs, rt);
+}
+
+static void
 r3000_disassembler_slt(char *buf, size_t n, uint32_t instruction)
 {
     const char *rd, *rs, *rt;
@@ -654,6 +701,12 @@ r3000_disassembler_special(char *buf, size_t n, uint32_t instruction)
     case 0x13:
         r3000_disassembler_mtlo(buf, n, instruction);
         break;
+    case 0x18:
+        r3000_disassembler_mult(buf, n, instruction);
+        break;
+    case 0x19:
+        r3000_disassembler_multu(buf, n, instruction);
+        break;
     case 0x1a:
         r3000_disassembler_div(buf, n, instruction);
         break;
@@ -677,6 +730,12 @@ r3000_disassembler_special(char *buf, size_t n, uint32_t instruction)
         break;
     case 0x25:
         r3000_disassembler_or(buf, n, instruction);
+        break;
+    case 0x26:
+        r3000_disassembler_xor(buf, n, instruction);
+        break;
+    case 0x27:
+        r3000_disassembler_nor(buf, n, instruction);
         break;
     case 0x2a:
         r3000_disassembler_slt(buf, n, instruction);
@@ -746,7 +805,7 @@ r3000_disassembler_disassemble(char *buf, size_t n, uint32_t instruction,
     if (instruction == 0) {
         snprintf(buf, n, "NOP");
         return;
-    } 
+    }
 
     switch (R3000_OPCODE(instruction)) {
     case 0x00:

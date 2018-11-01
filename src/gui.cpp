@@ -1,6 +1,10 @@
 #include <assert.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+
+#include <ctime>
+#include <string>
+#include <vector>
 
 #include <SDL2/SDL.h>
 
@@ -17,12 +21,16 @@ extern "C" {
 }
 
 struct gui_state {
-    bool should_quit;
-    bool should_run_frame;
+    bool quit;
+    bool step;
+
+    bool cont;
+    bool cont_prev;
 
     bool debug_cpu;
     bool debug_ram;
     bool debug_bios;
+    bool debug_tty;
 
     bool debug_modify_register;
     unsigned int debug_modify_register_value;
@@ -35,6 +43,8 @@ static struct gui_state gui_state;
 
 static MemoryEditor gui_memedit_ram;
 static MemoryEditor gui_memedit_bios;
+
+static std::vector<std::string> gui_tty_entries;
 
 void
 gui_setup(SDL_Window *window, SDL_GLContext context)
@@ -50,7 +60,7 @@ gui_setup(SDL_Window *window, SDL_GLContext context)
     ImGui::StyleColorsDark();
 
     gui_state = {};
-    gui_state.should_run_frame = true;
+    gui_state.cont = true;
 
     gui_memedit_ram.OptShowOptions = false;
     gui_memedit_ram.OptShowDataPreview = false;
@@ -80,24 +90,25 @@ gui_render_debug_cpu_actions(void)
 {
     const char *button_text;
 
+    button_text = gui_state.cont ? "Break" : "Continue";
+
     ImGui::BeginChild("Actions", ImVec2(235, 30));
 
     if (ImGui::Button("Reset", ImVec2(70, 25))) {
         psx_soft_reset();
     }
-	
+
     ImGui::SameLine();
-	
-    button_text = gui_state.should_run_frame ? "Break" : "Continue";
 
     if (ImGui::Button(button_text, ImVec2(70, 25))) {
-        gui_state.should_run_frame = !gui_state.should_run_frame;
+        gui_state.cont = !gui_state.cont;
     }
-    
+
     ImGui::SameLine();
 
     if (ImGui::Button("Step", ImVec2(70, 25))) {
-        gui_state.should_run_frame = false;
+        gui_state.step = true;
+        gui_state.cont = false;
         psx_step();
     }
 
@@ -213,7 +224,7 @@ gui_render_debug_cpu_register(unsigned int i)
         if (ImGui::IsMouseDoubleClicked(0)) {
             gui_state.debug_modify_register = true;
             gui_state.debug_modify_register_value = i;
-        }    
+        }
     }
 }
 
@@ -227,7 +238,7 @@ gui_render_debug_cpu_registers(void)
         gui_render_debug_cpu_register(i);
         ImGui::NextColumn();
     }
-   
+
     ImGui::Columns(1);
     ImGui::EndChild();
 }
@@ -265,12 +276,18 @@ gui_render_debug_cpu_disasm_instruction(uint32_t address)
         if (ImGui::IsMouseDoubleClicked(0)) {
             gui_state.debug_modify_disasm = true;
             gui_state.debug_modify_disasm_address = address;
-        } 
+        }
     }
 
     if (address == pc) {
         ImGui::PopStyleColor();
     }
+}
+
+static bool
+gui_break(void)
+{
+    return gui_state.cont_prev && !gui_state.cont;
 }
 
 static void
@@ -281,6 +298,8 @@ gui_render_debug_cpu_disasm(void)
 
     ImGui::BeginChild("Disassembly", ImVec2(400, ImGui::GetFontSize() * 32), true);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
+
+    /* TODO: Figure out how to handle clipper floating point problems */
     ImGuiListClipper clipper(0x8000000);
 
     while (clipper.Step()) {
@@ -289,13 +308,13 @@ gui_render_debug_cpu_disasm(void)
         }
     }
 
-    if (gui_state.should_run_frame) {
+    if (gui_state.step || gui_break()) {
         height = ImGui::GetTextLineHeightWithSpacing();
         pc_row = (r3000_read_pc() - 0xbfc00000) / 4;
 
         ImGui::SetScrollY((pc_row - 14) * height);
     }
-    
+
     ImGui::PopStyleVar();
     ImGui::EndChild();
 }
@@ -303,6 +322,9 @@ gui_render_debug_cpu_disasm(void)
 static void
 gui_render_debug_cpu(void)
 {
+    gui_state.step = false;
+    gui_state.cont_prev = gui_state.cont;
+
     ImGui::Begin("CPU", &gui_state.debug_cpu,
                  ImGuiWindowFlags_AlwaysAutoResize);
 
@@ -316,7 +338,50 @@ gui_render_debug_cpu(void)
     ImGui::SameLine();
 
     gui_render_debug_cpu_disasm();
-   
+
+    ImGui::End();
+}
+
+static void
+gui_render_debug_tty_output(void)
+{
+    ImVec2 size;
+    ImGuiWindowFlags flags;
+    std::string entry;
+
+    size = ImVec2(600, ImGui::GetFontSize() * 32);
+    flags = ImGuiWindowFlags_HorizontalScrollbar;
+
+    ImGui::BeginChild("TTY Output", size, true, flags);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
+
+    ImGuiListClipper clipper(gui_tty_entries.size());
+
+    while (clipper.Step()) {
+        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+            entry = gui_tty_entries.at(i);
+            ImGui::Text("%s", entry.c_str());
+        }
+    }
+
+    ImGui::PopStyleVar();
+    ImGui::EndChild();
+}
+
+static void
+gui_render_debug_tty(void)
+{
+    ImGuiWindowFlags flags;
+
+    flags = ImGuiWindowFlags_AlwaysAutoResize;
+    ImGui::Begin("TTY", &gui_state.debug_tty, flags);
+
+    gui_render_debug_tty_output();
+
+    if (ImGui::Button("Clear")) {
+        gui_tty_entries.clear();
+    }
+
     ImGui::End();
 }
 
@@ -339,7 +404,7 @@ gui_render(SDL_Window *window)
 
             ImGui::Separator();
 
-            ImGui::MenuItem("Quit", "ESC", &gui_state.should_quit);
+            ImGui::MenuItem("Quit", "ESC", &gui_state.quit);
             ImGui::EndMenu();
         }
 
@@ -347,6 +412,7 @@ gui_render(SDL_Window *window)
             ImGui::MenuItem("CPU", NULL, &gui_state.debug_cpu);
             ImGui::MenuItem("RAM", NULL, &gui_state.debug_ram);
             ImGui::MenuItem("BIOS", NULL, &gui_state.debug_bios);
+            ImGui::MenuItem("TTY", NULL, &gui_state.debug_tty);
             ImGui::EndMenu();
         }
 
@@ -363,6 +429,10 @@ gui_render(SDL_Window *window)
 
     if (gui_state.debug_bios) {
         gui_memedit_bios.DrawWindow("BIOS", psx_debug_bios(), PSX_BIOS_SIZE);
+    }
+
+    if (gui_state.debug_tty) {
+        gui_render_debug_tty();
     }
 
     if (gui_state.debug_modify_register) {
@@ -382,14 +452,35 @@ gui_draw(void)
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-bool
-gui_should_quit(void)
+
+static std::string
+gui_get_timestamp_string(void)
 {
-    return gui_state.should_quit;
+    std::time_t now;
+    char buf[32];
+
+    now = std::time(nullptr);
+    strftime(buf, sizeof(buf), "%X", localtime(&now));
+    return buf;
+}
+
+void
+gui_add_tty_entry(const char *str, size_t len)
+{
+    std::string entry;
+
+    entry = gui_get_timestamp_string() + "\t" + std::string(str, len);
+    gui_tty_entries.push_back(entry);
 }
 
 bool
-gui_should_run_frame(void)
+gui_should_quit(void)
 {
-    return gui_state.should_run_frame;
+    return gui_state.quit;
+}
+
+bool
+gui_should_continue(void)
+{
+    return gui_state.cont;
 }
