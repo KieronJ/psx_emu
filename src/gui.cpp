@@ -210,21 +210,32 @@ gui_render_modify_disasm(void)
     }
 }
 
+static bool
+gui_render_select_dclick(const char *text, unsigned int mouse_button)
+{
+    ImGuiSelectableFlags flags;
+
+    flags = ImGuiSelectableFlags_AllowDoubleClick;
+
+    if (ImGui::Selectable(text, false, flags) &&
+        ImGui::IsMouseDoubleClicked(mouse_button)) {
+        return true;
+    }
+
+    return false;
+}
+
 static void
 gui_render_debug_cpu_register(unsigned int i)
 {
     char text[32];
-    ImGuiSelectableFlags flags;
 
     snprintf(text, sizeof(text), "%s: 0x%08x",
              r3000_register_name(i), r3000_read_reg(i));
-    flags = ImGuiSelectableFlags_AllowDoubleClick;
 
-    if(ImGui::Selectable(text, false, flags)) {
-        if (ImGui::IsMouseDoubleClicked(0)) {
-            gui_state.debug_modify_register = true;
-            gui_state.debug_modify_register_value = i;
-        }
+    if (gui_render_select_dclick(text, 0)) {
+        gui_state.debug_modify_register = true;
+        gui_state.debug_modify_register_value = i;
     }
 }
 
@@ -258,11 +269,8 @@ gui_format_disassembly(char *buffer, size_t n, uint32_t address)
 static void
 gui_render_debug_cpu_disasm_instruction(uint32_t address)
 {
-    ImGuiSelectableFlags flags;
     uint32_t pc;
     char disassembly[64];
-
-    flags = ImGuiSelectableFlags_AllowDoubleClick;
 
     pc = r3000_read_pc();
 
@@ -272,11 +280,9 @@ gui_render_debug_cpu_disasm_instruction(uint32_t address)
 
     gui_format_disassembly(disassembly, sizeof(disassembly), address);
 
-    if (ImGui::Selectable(disassembly, false, flags)) {
-        if (ImGui::IsMouseDoubleClicked(0)) {
-            gui_state.debug_modify_disasm = true;
-            gui_state.debug_modify_disasm_address = address;
-        }
+    if (gui_render_select_dclick(disassembly, 0)) {
+        gui_state.debug_modify_disasm = true;
+        gui_state.debug_modify_disasm_address = address;
     }
 
     if (address == pc) {
@@ -347,7 +353,7 @@ gui_render_debug_tty_output(void)
 {
     ImVec2 size;
     ImGuiWindowFlags flags;
-    std::string entry;
+    const char *entry;
 
     size = ImVec2(600, ImGui::GetFontSize() * 32);
     flags = ImGuiWindowFlags_HorizontalScrollbar;
@@ -359,8 +365,12 @@ gui_render_debug_tty_output(void)
 
     while (clipper.Step()) {
         for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-            entry = gui_tty_entries.at(i);
-            ImGui::Text("%s", entry.c_str());
+            entry = gui_tty_entries.at(i).c_str();
+
+            if (gui_render_select_dclick(entry, 0)) {
+                ImGui::SetClipboardText(entry);
+                printf("gui: info: copied to clipboard\n");
+            }
         }
     }
 
