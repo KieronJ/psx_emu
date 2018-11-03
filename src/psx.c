@@ -10,6 +10,7 @@
 #include "psx.h"
 #include "r3000.h"
 #include "r3000_interpreter.h"
+#include "spu.h"
 #include "util.h"
 
 #define PSX_FORCE_TTY
@@ -100,6 +101,8 @@ psx_reset_memory(void)
 {
     memset(psx.ram, 0, PSX_RAM_SIZE);
 
+    spu_reset_memory();
+
     psx.interrupt.status = 0;
     psx.interrupt.mask = 0;
 }
@@ -107,8 +110,9 @@ psx_reset_memory(void)
 void
 psx_setup(const char *bios_path)
 {
-    r3000_setup();
     exp2_setup();
+    r3000_setup();
+    spu_setup();
 
     psx.bios = malloc(PSX_BIOS_SIZE);
     psx.ram = malloc(PSX_RAM_SIZE);
@@ -135,6 +139,8 @@ psx_shutdown(void)
 
     free(psx.bios);
     free(psx.ram);
+
+    spu_shutdown();
 }
 
 void
@@ -210,8 +216,7 @@ psx_read_memory16(uint32_t address)
     }
 
     if (between(address, PSX_SPU_START, PSX_SPU_END)) {
-        printf("psx: info: read from spu register at 0x%08x\n", address);
-        return 0;
+        return spu_read16(address);
     }
 
     printf("psx: error: unknown read address 0x%08x\n", address);
@@ -248,6 +253,11 @@ psx_read_memory32(uint32_t address)
         return 0;
     }
 
+    if (between(address, PSX_TIMER_START, PSX_TIMER_END)) {
+        printf("psx: info: read from timer register at 0x%08x\n", address);
+        return 0;
+    }
+
     if (address == PSX_GPUREAD) {
         printf("psx: info: read from gpuread\n");
         return 0;
@@ -255,7 +265,7 @@ psx_read_memory32(uint32_t address)
 
     if (address == PSX_GPUSTAT) {
         //printf("psx: info: read from gpustat\n");
-        return 0;
+        return 0x1c000000;
     }
 
     printf("psx: error: unknown read address 0x%08x\n", address);
@@ -307,7 +317,7 @@ psx_write_memory16(uint32_t address, uint16_t value)
     }
 
     if (between(address, PSX_SPU_START, PSX_SPU_END)) {
-        printf("psx: info: write to spu register at 0x%08x\n", address);
+        spu_write16(address, value);
         return;
     }
 

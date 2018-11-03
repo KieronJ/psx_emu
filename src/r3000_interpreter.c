@@ -199,6 +199,19 @@ r3000_interpreter_ori(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_xori(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t imm;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    imm = R3000_IMM(instruction);
+
+    r3000_write_reg(rt, r3000_read_reg(rs) ^ imm);
+}
+
+static void
 r3000_interpreter_lui(uint32_t instruction)
 {
     unsigned int rt;
@@ -243,6 +256,39 @@ r3000_interpreter_lh(uint32_t instruction)
     }
 
     value = (int16_t)r3000_read_memory16(address);
+
+    r3000_write_reg(rt, value);
+}
+
+static void
+r3000_interpreter_lwl(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset, address, current, aligned, value;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    address = r3000_read_reg(rs) + offset;
+
+    current = r3000_read_reg(rt);
+    aligned = r3000_read_memory32(address & ~0x3);
+
+    switch (address & 0x3) {
+    case 0x0:
+        value = (current & 0xffffff) | (aligned << 24);
+        break;
+    case 0x1:
+        value = (current & 0xffff) | (aligned << 16);
+        break;
+    case 0x2:
+        value = (current & 0xff) | (aligned << 8);
+        break;
+    case 0x3:
+        value = aligned;
+        break;
+    }
 
     r3000_write_reg(rt, value);
 }
@@ -300,6 +346,39 @@ r3000_interpreter_lhu(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_lwr(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset, address, current, aligned, value;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    address = r3000_read_reg(rs) + offset;
+
+    current = r3000_read_reg(rt);
+    aligned = r3000_read_memory32(address & ~0x3);
+
+    switch (address & 0x3) {
+    case 0x0:
+        value = aligned;
+        break;
+    case 0x1:
+        value = (current & 0xff000000) | (aligned >> 8);
+        break;
+    case 0x2:
+        value = (current & 0xffff0000) | (aligned >> 16);
+        break;
+    case 0x3:
+        value = (current & 0xffffff00) | (aligned >> 24);
+        break;
+    }
+
+    r3000_write_reg(rt, value);
+}
+
+static void
 r3000_interpreter_sb(uint32_t instruction)
 {
     unsigned int rt, rs;
@@ -333,6 +412,36 @@ r3000_interpreter_sh(uint32_t instruction)
 }
 
 static void
+r3000_interpreter_swl(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset, address, current, value;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    address = r3000_read_reg(rs) + offset;
+
+    current = r3000_read_memory32(address & ~0x3);
+    value = r3000_read_reg(rt);
+   
+    switch (address & 0x3) {
+    case 0x0:
+        value = (current & 0xffffff00) | (value >> 24);
+        break;
+    case 0x1:
+        value = (current & 0xffff0000) | (value >> 16);
+        break;
+    case 0x2:
+        value = (current & 0xff000000) | (value >> 8);
+        break;
+    }
+
+    r3000_write_memory32(address & ~0x3, value);
+}
+
+static void
 r3000_interpreter_sw(uint32_t instruction)
 {
     unsigned int rt, rs;
@@ -350,6 +459,36 @@ r3000_interpreter_sw(uint32_t instruction)
     }
 
     r3000_write_memory32(address, r3000_read_reg(rt));
+}
+
+static void
+r3000_interpreter_swr(uint32_t instruction)
+{
+    unsigned int rt, rs;
+    uint32_t offset, address, current, value;
+
+    rt = R3000_RT(instruction);
+    rs = R3000_RS(instruction);
+    offset = R3000_IMM_SE(instruction);
+
+    address = r3000_read_reg(rs) + offset;
+
+    current = r3000_read_memory32(address & ~0x3);
+    value = r3000_read_reg(rt);
+   
+    switch (address & 0x3) {
+    case 0x1:
+        value = (current & 0xff) | (value << 8);
+        break;
+    case 0x2:
+        value = (current & 0xffff) | (value << 16);
+        break;
+    case 0x3:
+        value = (current & 0xffffff) | (value << 24);
+        break;
+    }
+
+    r3000_write_memory32(address & ~0x3, value);
 }
 
 static void
@@ -934,6 +1073,9 @@ void r3000_interpreter_execute(void)
     case 0x0d:
         r3000_interpreter_ori(instruction);
         break;
+    case 0x0e:
+        r3000_interpreter_xori(instruction);
+        break;
     case 0x0f:
         r3000_interpreter_lui(instruction);
         break;
@@ -946,6 +1088,9 @@ void r3000_interpreter_execute(void)
     case 0x21:
         r3000_interpreter_lh(instruction);
         break;
+    case 0x22:
+        r3000_interpreter_lwl(instruction);
+        break;
     case 0x23:
         r3000_interpreter_lw(instruction);
         break;
@@ -955,14 +1100,23 @@ void r3000_interpreter_execute(void)
     case 0x25:
         r3000_interpreter_lhu(instruction);
         break;
+    case 0x26:
+        r3000_interpreter_lwr(instruction);
+        break;
     case 0x28:
         r3000_interpreter_sb(instruction);
         break;
     case 0x29:
         r3000_interpreter_sh(instruction);
         break;
+    case 0x2a:
+        r3000_interpreter_swl(instruction);
+        break;
     case 0x2b:
         r3000_interpreter_sw(instruction);
+        break;
+    case 0x2e:
+        r3000_interpreter_swr(instruction);
         break;
     default:
         printf("r3000_interpreter: error: unknown instruction 0x%08x\n",

@@ -61,6 +61,7 @@ void r3000_write_memory8(uint32_t address, uint8_t value);
 void r3000_write_memory16(uint32_t address, uint16_t value);
 void r3000_write_memory32(uint32_t address, uint32_t value);
 
+void r3000_debug_force_pc(uint32_t address);
 uint32_t r3000_debug_read_memory32(uint32_t address);
 void r3000_debug_write_memory32(uint32_t address, uint32_t value);
 

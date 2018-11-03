@@ -430,6 +430,15 @@ r3000_write_memory32(uint32_t address, uint32_t value)
     psx_write_memory32(r3000_translate_virtaddr(address), value);
 }
 
+void
+r3000_debug_force_pc(uint32_t address)
+{
+    r3000.pc = r3000.current_pc = address;
+    r3000.next_pc = r3000.pc + 4;
+
+    r3000.branch = r3000.branch_delay = false;
+}
+
 uint32_t
 r3000_debug_read_memory32(uint32_t address)
 {

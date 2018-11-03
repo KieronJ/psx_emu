@@ -208,6 +208,19 @@ r3000_disassembler_ori(char *buf, size_t n, uint32_t instruction)
 }
 
 static void
+r3000_disassembler_xori(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t imm;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    imm = R3000_IMM(instruction);
+
+    snprintf(buf, n, "XORI %s, %s, 0x%04x", rt, rs, imm);
+}
+
+static void
 r3000_disassembler_lui(char *buf, size_t n, uint32_t instruction)
 {
     const char *rt;
@@ -234,6 +247,40 @@ r3000_disassembler_lb(char *buf, size_t n, uint32_t instruction)
     offset_abs = HEX_ABS_32(offset);
 
     snprintf(buf, n, "LB %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
+}
+
+static void
+r3000_disassembler_lh(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    snprintf(buf, n, "LH %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
+}
+
+static void
+r3000_disassembler_lwl(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    snprintf(buf, n, "LWL %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
 }
 
 static void
@@ -288,6 +335,23 @@ r3000_disassembler_lhu(char *buf, size_t n, uint32_t instruction)
 }
 
 static void
+r3000_disassembler_lwr(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    snprintf(buf, n, "LWR %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
+}
+
+static void
 r3000_disassembler_sb(char *buf, size_t n, uint32_t instruction)
 {
     const char *rt, *rs;
@@ -322,6 +386,23 @@ r3000_disassembler_sh(char *buf, size_t n, uint32_t instruction)
 }
 
 static void
+r3000_disassembler_swl(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    snprintf(buf, n, "SWL %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
+}
+
+static void
 r3000_disassembler_sw(char *buf, size_t n, uint32_t instruction)
 {
     const char *rt, *rs;
@@ -336,6 +417,23 @@ r3000_disassembler_sw(char *buf, size_t n, uint32_t instruction)
     offset_abs = HEX_ABS_32(offset);
 
     snprintf(buf, n, "SW %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
+}
+
+static void
+r3000_disassembler_swr(char *buf, size_t n, uint32_t instruction)
+{
+    const char *rt, *rs;
+    uint32_t offset, offset_abs;
+    char *offset_sign;
+
+    rt = r3000_register_name(R3000_RT(instruction));
+    rs = r3000_register_name(R3000_RS(instruction));
+    offset = R3000_IMM_SE(instruction);
+
+    offset_sign = HEX_SIGN_32(offset);
+    offset_abs = HEX_ABS_32(offset);
+
+    snprintf(buf, n, "SWR %s, %s0x%x(%s)", rt, offset_sign, offset_abs, rs);
 }
 
 static void
@@ -850,6 +948,9 @@ r3000_disassembler_disassemble(char *buf, size_t n, uint32_t instruction,
     case 0x0d:
         r3000_disassembler_ori(buf, n, instruction);
         break;
+    case 0x0e:
+        r3000_disassembler_xori(buf, n, instruction);
+        break;
     case 0x0f:
         r3000_disassembler_lui(buf, n, instruction);
         break;
@@ -858,6 +959,12 @@ r3000_disassembler_disassemble(char *buf, size_t n, uint32_t instruction,
         break;
     case 0x20:
         r3000_disassembler_lb(buf, n, instruction);
+        break;
+    case 0x21:
+        r3000_disassembler_lh(buf, n, instruction);
+        break;
+    case 0x22:
+        r3000_disassembler_lwl(buf, n, instruction);
         break;
     case 0x23:
         r3000_disassembler_lw(buf, n, instruction);
@@ -868,14 +975,23 @@ r3000_disassembler_disassemble(char *buf, size_t n, uint32_t instruction,
     case 0x25:
         r3000_disassembler_lhu(buf, n, instruction);
         break;
+    case 0x26:
+        r3000_disassembler_lwr(buf, n, instruction);
+        break;
     case 0x28:
         r3000_disassembler_sb(buf, n, instruction);
         break;
     case 0x29:
         r3000_disassembler_sh(buf, n, instruction);
         break;
+    case 0x2a:
+        r3000_disassembler_swl(buf, n, instruction);
+        break;
     case 0x2b:
         r3000_disassembler_sw(buf, n, instruction);
+        break;
+    case 0x2e:
+        r3000_disassembler_swr(buf, n, instruction);
         break;
     default:
         snprintf(buf, n, "UNKNOWN");

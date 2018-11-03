@@ -18,6 +18,7 @@ extern "C" {
 #include "psx.h"
 #include "r3000.h"
 #include "r3000_disassembler.h"
+#include "spu.h"
 }
 
 struct gui_state {
@@ -30,19 +31,25 @@ struct gui_state {
     bool debug_cpu;
     bool debug_ram;
     bool debug_bios;
+    bool debug_sram;
     bool debug_tty;
 
-    bool debug_modify_register;
-    unsigned int debug_modify_register_value;
+    bool disasm_lock;
+    bool disasm_lock_jump;
+    uint32_t disasm_lock_address;
 
-    bool debug_modify_disasm;
-    uint32_t debug_modify_disasm_address;
+    bool modify_register;
+    unsigned int modify_register_value;
+
+    bool modify_disasm;
+    uint32_t modify_disasm_address;
 };
 
 static struct gui_state gui_state;
 
 static MemoryEditor gui_memedit_ram;
 static MemoryEditor gui_memedit_bios;
+static MemoryEditor gui_memedit_sram;
 
 static std::vector<std::string> gui_tty_entries;
 
@@ -102,6 +109,10 @@ gui_render_debug_cpu_actions(void)
 
     if (ImGui::Button(button_text, ImVec2(70, 25))) {
         gui_state.cont = !gui_state.cont;
+
+        if (gui_state.cont) {
+            gui_state.disasm_lock = false;
+        }
     }
 
     ImGui::SameLine();
@@ -109,24 +120,12 @@ gui_render_debug_cpu_actions(void)
     if (ImGui::Button("Step", ImVec2(70, 25))) {
         gui_state.step = true;
         gui_state.cont = false;
+        gui_state.disasm_lock = false;
+
         psx_step();
     }
 
     ImGui::EndChild();
-}
-
-static bool
-gui_set_hex_value_button(const char *title, char *src, uint32_t *dest)
-{
-    if (ImGui::Button(title)) {
-        if (strlen(src) != 0) {
-            *dest = strtoul(src, NULL, 16);
-            src[0] = '\0';
-            return true;
-        }
-    }
-
-    return false;
 }
 
 static void
@@ -136,31 +135,42 @@ gui_render_modify_register(void)
 
     ImGuiWindowFlags window_flags;
     ImGuiInputTextFlags input_flags;
+
+    bool enter, button;
+
     unsigned int reg;
     const char *reg_name;
-    uint32_t new_val;
     char title[32];
 
     window_flags = ImGuiWindowFlags_AlwaysAutoResize;
-    input_flags = ImGuiInputTextFlags_CharsHexadecimal;
-    reg = gui_state.debug_modify_register_value;
+    input_flags = ImGuiInputTextFlags_CharsHexadecimal |
+                  ImGuiInputTextFlags_EnterReturnsTrue;
+
+    reg = gui_state.modify_register_value;
     reg_name = r3000_register_name(reg);
     snprintf(title, sizeof(title), "Enter value for register %s", reg_name);
 
     ImGui::OpenPopup(title);
 
     if (ImGui::BeginPopupModal(title, NULL, window_flags)) {
-        ImGui::InputText("", value, sizeof(value), input_flags);
+        enter = ImGui::InputText("", value, sizeof(value), input_flags);
+        button = ImGui::Button("Set");
 
-        if (gui_set_hex_value_button("Set", value, &new_val)) {
-            r3000_write_reg(reg, new_val);
-            gui_state.debug_modify_register = false;
+        if (enter || button) {
+            if(reg == 0) {
+                r3000_debug_force_pc(strtoul(value, NULL, 16));
+            } else {
+                r3000_write_reg(reg, strtoul(value, NULL, 16));
+            }
+
+            gui_state.modify_register = false;
+            value[0] = '\0';
         }
 
         ImGui::SameLine();
 
         if (ImGui::Button("Cancel")) {
-            gui_state.debug_modify_register = false;
+            gui_state.modify_register = false;
             value[0] = '\0';
         }
 
@@ -175,34 +185,42 @@ gui_render_modify_disasm(void)
 
     ImGuiWindowFlags window_flags;
     ImGuiInputTextFlags input_flags;
+
+    bool enter, button;
+
     uint32_t address, new_val;
     char title[32], disassembly[64];
 
     window_flags = ImGuiWindowFlags_AlwaysAutoResize;
-    input_flags = ImGuiInputTextFlags_CharsHexadecimal;
-    address = gui_state.debug_modify_disasm_address;
+    input_flags = ImGuiInputTextFlags_CharsHexadecimal |
+                  ImGuiInputTextFlags_EnterReturnsTrue;
+
+    address = gui_state.modify_disasm_address;
     snprintf(title, sizeof(title), "Enter value for 0x%08x", address);
 
     ImGui::OpenPopup(title);
 
     if (ImGui::BeginPopupModal(title, NULL, window_flags)) {
-        ImGui::InputText("", value, sizeof(value), input_flags);
+        new_val = strtoul(value, NULL, 16);
 
-        if (strlen(value) != 0) {
-            new_val = strtoul(value, NULL, 16);
-            r3000_disassembler_disassemble(disassembly, sizeof(disassembly), new_val, address);
-            ImGui::Text("%s", disassembly);
-        }
+        enter = ImGui::InputText("", value, sizeof(value), input_flags);
 
-        if (gui_set_hex_value_button("Set", value, &new_val)) {
-            r3000_debug_write_memory32(address, new_val);
-            gui_state.debug_modify_disasm = false;
+        r3000_disassembler_disassemble(disassembly, sizeof(disassembly), new_val, address);
+        ImGui::Text("%s", disassembly);
+
+        button = ImGui::Button("Set");
+
+        if (enter || button) {
+            r3000_debug_write_memory32(address, strtoul(value, NULL, 16));
+
+            gui_state.modify_disasm = false;
+            value[0] = '\0';
         }
 
         ImGui::SameLine();
 
         if (ImGui::Button("Cancel")) {
-            gui_state.debug_modify_disasm = false;
+            gui_state.modify_disasm = false;
             value[0] = '\0';
         }
 
@@ -229,13 +247,17 @@ static void
 gui_render_debug_cpu_register(unsigned int i)
 {
     char text[32];
+    const char *name;
+    uint32_t value;
 
-    snprintf(text, sizeof(text), "%s: 0x%08x",
-             r3000_register_name(i), r3000_read_reg(i));
+    name = i == 0 ? "$pc" : r3000_register_name(i);
+    value = i == 0 ? r3000_read_pc() : r3000_read_reg(i);
+
+    snprintf(text, sizeof(text), "%s: 0x%08x", name, value);
 
     if (gui_render_select_dclick(text, 0)) {
-        gui_state.debug_modify_register = true;
-        gui_state.debug_modify_register_value = i;
+        gui_state.modify_register = true;
+        gui_state.modify_register_value = i;
     }
 }
 
@@ -281,8 +303,8 @@ gui_render_debug_cpu_disasm_instruction(uint32_t address)
     gui_format_disassembly(disassembly, sizeof(disassembly), address);
 
     if (gui_render_select_dclick(disassembly, 0)) {
-        gui_state.debug_modify_disasm = true;
-        gui_state.debug_modify_disasm_address = address;
+        gui_state.modify_disasm = true;
+        gui_state.modify_disasm_address = address;
     }
 
     if (address == pc) {
@@ -297,32 +319,55 @@ gui_break(void)
 }
 
 static void
-gui_render_debug_cpu_disasm(void)
+gui_render_debug_cpu_disasm_window(void)
 {
-    int pc_row;
+    ImVec2 size;
+
+    uint32_t address;
     float height;
 
-    ImGui::BeginChild("Disassembly", ImVec2(400, ImGui::GetFontSize() * 32), true);
+    size = ImVec2(400, ImGui::GetFontSize() * 32);
+
+    address = gui_state.disasm_lock ? gui_state.disasm_lock_address
+                                      : r3000_read_pc();
+
+    ImGui::BeginChild("Disassembly", size, true);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1));
 
-    /* TODO: Figure out how to handle clipper floating point problems */
-    ImGuiListClipper clipper(0x8000000);
-
-    while (clipper.Step()) {
-        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-            gui_render_debug_cpu_disasm_instruction(0xbfc00000 + i * 4);
-        }
+    for (int i = -1024; i <= 1024; ++i) {
+        gui_render_debug_cpu_disasm_instruction(address + i * 4);
     }
 
-    if (gui_state.step || gui_break()) {
-        height = ImGui::GetTextLineHeightWithSpacing();
-        pc_row = (r3000_read_pc() - 0xbfc00000) / 4;
+    if (gui_state.step || gui_state.disasm_lock_jump || gui_break()) {
+        gui_state.disasm_lock_jump = false;
 
-        ImGui::SetScrollY((pc_row - 14) * height);
+        height = ImGui::GetTextLineHeightWithSpacing();
+        ImGui::SetScrollY(1010 * height);
     }
 
     ImGui::PopStyleVar();
     ImGui::EndChild();
+}
+
+static void
+gui_render_debug_cpu_disasm_jump(void)
+{
+    static char value[9] = "";
+
+    ImGuiInputTextFlags flags;
+
+    flags = ImGuiInputTextFlags_CharsHexadecimal |
+            ImGuiInputTextFlags_EnterReturnsTrue;
+
+    ImGui::Text("Jump to address:");
+
+    ImGui::SameLine();
+
+    if (ImGui::InputText("", value, sizeof(value), flags)) {
+        gui_state.disasm_lock = true;
+        gui_state.disasm_lock_jump = true;
+        gui_state.disasm_lock_address = strtoul(value, NULL, 16);
+    }
 }
 
 static void
@@ -335,15 +380,16 @@ gui_render_debug_cpu(void)
                  ImGuiWindowFlags_AlwaysAutoResize);
 
     ImGui::BeginGroup();
-
     gui_render_debug_cpu_actions();
     gui_render_debug_cpu_registers();
-
     ImGui::EndGroup();
 
     ImGui::SameLine();
 
-    gui_render_debug_cpu_disasm();
+    ImGui::BeginGroup();
+    gui_render_debug_cpu_disasm_window();
+    gui_render_debug_cpu_disasm_jump();
+    ImGui::EndGroup();
 
     ImGui::End();
 }
@@ -422,6 +468,7 @@ gui_render(SDL_Window *window)
             ImGui::MenuItem("CPU", NULL, &gui_state.debug_cpu);
             ImGui::MenuItem("RAM", NULL, &gui_state.debug_ram);
             ImGui::MenuItem("BIOS", NULL, &gui_state.debug_bios);
+            ImGui::MenuItem("SPU RAM", NULL, &gui_state.debug_sram);
             ImGui::MenuItem("TTY", NULL, &gui_state.debug_tty);
             ImGui::EndMenu();
         }
@@ -441,15 +488,19 @@ gui_render(SDL_Window *window)
         gui_memedit_bios.DrawWindow("BIOS", psx_debug_bios(), PSX_BIOS_SIZE);
     }
 
+    if (gui_state.debug_sram) {
+        gui_memedit_sram.DrawWindow("SPU RAM", spu_debug_ram(), SPU_RAM_SIZE);
+    }
+
     if (gui_state.debug_tty) {
         gui_render_debug_tty();
     }
 
-    if (gui_state.debug_modify_register) {
+    if (gui_state.modify_register) {
         gui_render_modify_register();
     }
 
-    if (gui_state.debug_modify_disasm) {
+    if (gui_state.modify_disasm) {
         gui_render_modify_disasm();
     }
 

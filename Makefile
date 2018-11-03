@@ -3,7 +3,7 @@ CXX = g++
 
 CPPFLAGS = -Iinclude -Iinclude/imgui -Iinclude/SDL2 -Llib
 CFLAGS = -O2 -Wall -Wextra -std=gnu99
-CXXFLAGS = -O2 -Wall -Wextra
+CXXFLAGS = -O2 -Wall -Wextra -std=gnu++14
 
 LDFLAGS = -lgcc -lSDL2 -lopengl32
 
@@ -17,6 +17,7 @@ SOURCES = \
 	src/r3000.c \
 	src/r3000_disassembler.c \
 	src/r3000_interpreter.c \
+	src/spu.c \
 	src/util.c \
 	src/window.c
 
