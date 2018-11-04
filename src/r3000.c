@@ -10,6 +10,8 @@
 #define R3000_EXCEPTION_VECTOR0 0x80000080
 #define R3000_EXCEPTION_VECTOR1 0xbfc00180
 
+#define R3000_COP0_IP           0x0000ff00
+
 #define R3000_COP0_SR_IEC       0x00000001
 #define R3000_COP0_SR_KUC       0x00000002
 #define R3000_COP0_SR_ISC       0x00010000
@@ -20,6 +22,7 @@
 
 #define R3000_COP0_CAUSE_EX     0x0000007c
 #define R3000_COP0_CAUSE_IP_W   0x00000300
+#define R3000_COP0_CAUSE_IRQ    0x00000400
 #define R3000_COP0_CAUSE_BD     0x80000000
 
 static const char *R3000_REGISTERS[R3000_NR_REGISTERS] = {
@@ -139,6 +142,25 @@ r3000_cop0_hard_reset(void)
     r3000.cop0.epc = 0;
 }
 
+static void
+r3000_cop0_assert_irq(bool state)
+{
+    r3000.cop0.cause &= ~R3000_COP0_CAUSE_IRQ;
+    r3000.cop0.cause |= state ? R3000_COP0_CAUSE_IRQ : 0;
+}
+
+static bool
+r3000_cop0_interrupts_enabled(void)
+{
+    return r3000.cop0.sr & R3000_COP0_SR_IEC;
+}
+
+static bool
+r3000_cop0_interrupt_pending(void)
+{
+    return r3000.cop0.sr & r3000.cop0.cause & R3000_COP0_IP;
+}
+
 static uint32_t
 r3000_cop0_exception(enum R3000Exception e, bool branch_delay, uint32_t epc)
 {
@@ -213,6 +235,12 @@ r3000_hard_reset(void)
     memset(r3000.gpr, 0, sizeof(r3000.gpr));
 
     r3000_soft_reset();
+}
+
+void
+r3000_assert_irq(bool state)
+{
+    r3000_cop0_assert_irq(state);
 }
 
 void
@@ -358,6 +386,12 @@ r3000_read_code(void)
 
     r3000.branch_delay = r3000.branch;
     r3000.branch = false;
+
+    if (r3000_cop0_interrupts_enabled() && r3000_cop0_interrupt_pending()) {
+        r3000_exception(R3000_EXCEPTION_INTERRUPT);
+        printf("r3000: info: interrupt triggered\n");
+        return 0;
+    }
 
     return result;
 }

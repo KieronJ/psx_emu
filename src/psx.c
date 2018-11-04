@@ -16,12 +16,12 @@
 #define PSX_FORCE_TTY
 
 #define PSX_REFRESH_RATE        60
-#define PSX_CYCLES_PER_REFRESH  (R3000_FREQ / PSX_REFRESH_RATE)
 
 #define PSX_EXP1_SIZE           MEGABYTES(8)
 #define PSX_MEMCTRL_SIZE        0x24
 #define PSX_DMA_SIZE            0x80
 #define PSX_TIMER_SIZE          0x30
+#define PSX_CDROM_SIZE          0x4
 #define PSX_SPU_SIZE            KILOBYTES(1)
 #define PSX_EXP2_SIZE           KILOBYTES(8)
 
@@ -44,6 +44,9 @@
 
 #define PSX_TIMER_START         0x1f801100
 #define PSX_TIMER_END           PSX_TIMER_START + PSX_TIMER_SIZE
+
+#define PSX_CDROM_START         0x1f801800
+#define PSX_CDROM_END           PSX_CDROM_START + PSX_CDROM_SIZE
 
 #define PSX_GPUREAD             0x1f801810
 #define PSX_GP0                 0x1f801810
@@ -165,10 +168,18 @@ psx_step(void)
 void
 psx_run_frame(void)
 {
-    for (int i = 0; i < PSX_CYCLES_PER_REFRESH; ++i) {
-        //printf("%f\n", (float)i / (float)PSX_CYCLES_PER_REFRESH);
+    for (int i = 0; i < R3000_IPS / PSX_REFRESH_RATE; ++i) {
         psx_step();
     }
+
+    psx_assert_irq(PSX_INTERRUPT_VBLANK);
+}
+
+void
+psx_assert_irq(enum psx_interrupt i)
+{
+    psx.interrupt.status |= i;
+    r3000_assert_irq(psx.interrupt.status & psx.interrupt.mask);
 }
 
 uint8_t
@@ -183,6 +194,11 @@ psx_read_memory8(uint32_t address)
 
     if (between(address, PSX_EXP1_START, PSX_EXP1_END)) {
         printf("psx: info: read from exp1 register at 0x%08x\n", address);
+        return 0;
+    }
+
+    if (between(address, PSX_CDROM_START, PSX_CDROM_END)) {
+        printf("psx: info: read from cdrom register at 0x%08x\n", address);
         return 0;
     }
 
@@ -209,6 +225,10 @@ psx_read_memory16(uint32_t address)
     if (between(address, PSX_RAM_START, PSX_RAM_END)) {
         offset = (address - PSX_RAM_START) / sizeof(uint16_t);
         return ((uint16_t *)psx.ram)[offset];
+    }
+
+    if (address == PSX_INTERRUPT_STATUS) {
+        return psx.interrupt.status;
     }
 
     if (address == PSX_INTERRUPT_MASK) {
@@ -250,6 +270,7 @@ psx_read_memory32(uint32_t address)
 
     if (between(address, PSX_DMA_START, PSX_DMA_END)) {
         printf("psx: info: read from dma register at 0x%08x\n", address);
+        PANIC;
         return 0;
     }
 
@@ -285,6 +306,11 @@ psx_write_memory8(uint32_t address, uint8_t value)
         return;
     }
 
+    if (between(address, PSX_CDROM_START, PSX_CDROM_END)) {
+        printf("psx: info: write to cdrom register at 0x%08x\n", address);
+        return;
+    }
+
     if (between(address, PSX_EXP2_START, PSX_EXP2_END)) {
         exp2_write8(address, value);
         return;
@@ -305,9 +331,15 @@ psx_write_memory16(uint32_t address, uint16_t value)
         return;
     }
 
+    if (address == PSX_INTERRUPT_STATUS) {
+        psx.interrupt.status &= value;
+        r3000_assert_irq(psx.interrupt.status & psx.interrupt.mask);
+        return;
+    }
+
     if (address == PSX_INTERRUPT_MASK) {
-        psx.interrupt.mask &= 0xffff0000;
         psx.interrupt.mask |= value;
+        r3000_assert_irq(psx.interrupt.status & psx.interrupt.mask);
         return;
     }
 
@@ -353,16 +385,19 @@ psx_write_memory32(uint32_t address, uint32_t value)
 
     if (address == PSX_INTERRUPT_STATUS) {
         psx.interrupt.status &= value;
+        r3000_assert_irq(psx.interrupt.status & psx.interrupt.mask);
         return;
     }
 
     if (address == PSX_INTERRUPT_MASK) {
         psx.interrupt.mask = value;
+        r3000_assert_irq(psx.interrupt.status & psx.interrupt.mask);
         return;
     }
 
     if (between(address, PSX_DMA_START, PSX_DMA_END)) {
         printf("psx: info: write to dma register at 0x%08x\n", address);
+        PANIC;
         return;
     }
 

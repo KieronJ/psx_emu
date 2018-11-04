@@ -1,6 +1,7 @@
 #ifndef R3000_H
 #define R3000_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define R3000_REGISTER_HI       32
@@ -10,6 +11,8 @@
 #define R3000_COP0_NR_REGISTERS 32
 
 #define R3000_FREQ              33868800
+#define R3000_INSTRUCTION_CYC   2
+#define R3000_IPS               (R3000_FREQ / R3000_INSTRUCTION_CYC)
 
 #define R3000_OPCODE(x)         ((x) >> 26)
 #define R3000_RS(x)             (((x) >> 21) & 0x1f)
@@ -39,6 +42,7 @@ void r3000_setup(void);
 void r3000_soft_reset(void);
 void r3000_hard_reset(void);
 
+void r3000_assert_irq(bool state);
 void r3000_exception(enum R3000Exception e);
 void r3000_exit_exception(void);
 

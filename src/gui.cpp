@@ -250,8 +250,13 @@ gui_render_debug_cpu_register(unsigned int i)
     const char *name;
     uint32_t value;
 
-    name = i == 0 ? "$pc" : r3000_register_name(i);
-    value = i == 0 ? r3000_read_pc() : r3000_read_reg(i);
+    if (i == 0) {
+        name = "$pc";
+        value = r3000_read_pc();
+    } else {
+        name = r3000_register_name(i);
+        value = r3000_read_reg(i);
+    }
 
     snprintf(text, sizeof(text), "%s: 0x%08x", name, value);
 
