@@ -197,8 +197,9 @@ spu_shutdown(void)
 }
 
 void
-spu_reset_memory(void)
+spu_hard_reset(void)
 {
+    assert(spu.ram);
     memset(spu.ram, 0, SPU_RAM_SIZE);
 }
 

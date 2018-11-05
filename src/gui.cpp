@@ -375,6 +375,29 @@ gui_render_debug_cpu_disasm_jump(void)
     }
 }
 
+static const char interrupt_flags[12] = "VGCD012JISP";
+
+static void
+gui_render_debug_interrupts(void)
+{
+    uint32_t istat, imask;
+    char istat_string[12], imask_string[12];
+
+    istat = psx_debug_read_memory32(PSX_INTERRUPT_STATUS);
+    imask = psx_debug_read_memory32(PSX_INTERRUPT_MASK);
+
+    for (int i = 0; i < 11; ++i) {
+        istat_string[i] = ((istat >> i) & 0x1) ? interrupt_flags[i] : '-';
+        imask_string[i] = ((imask >> i) & 0x1) ? interrupt_flags[i] : '-';
+    }
+
+    istat_string[11] = '\0';
+    imask_string[11] = '\0';
+
+    ImGui::Text("ISTAT: %s\n", istat_string);
+    ImGui::Text("IMASK: %s\n", imask_string);
+}
+
 static void
 gui_render_debug_cpu(void)
 {
@@ -387,6 +410,7 @@ gui_render_debug_cpu(void)
     ImGui::BeginGroup();
     gui_render_debug_cpu_actions();
     gui_render_debug_cpu_registers();
+    gui_render_debug_interrupts();
     ImGui::EndGroup();
 
     ImGui::SameLine();

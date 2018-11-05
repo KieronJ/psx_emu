@@ -7,8 +7,7 @@
 
 void spu_setup(void);
 void spu_shutdown(void);
-
-void spu_reset_memory(void);
+void spu_hard_reset(void);
 
 uint16_t spu_read16(uint32_t address);
 void spu_write16(uint32_t address, uint16_t value);

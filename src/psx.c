@@ -1,10 +1,12 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "dma.h"
 #include "exp2.h"
 #include "macros.h"
 #include "psx.h"
@@ -35,9 +37,6 @@
 #define PSX_MEMCTRL_END         PSX_MEMCTRL_START + PSX_MEMCTRL_SIZE
 
 #define PSX_MEMCTRL2            0x1f801060
-
-#define PSX_INTERRUPT_STATUS    0x1f801070
-#define PSX_INTERRUPT_MASK      0x1f801074
 
 #define PSX_DMA_START           0x1f801080
 #define PSX_DMA_END             PSX_DMA_START + PSX_DMA_SIZE
@@ -102,9 +101,8 @@ psx_load_bios(const char *bios_path)
 static void
 psx_reset_memory(void)
 {
+    assert(psx.ram);
     memset(psx.ram, 0, PSX_RAM_SIZE);
-
-    spu_reset_memory();
 
     psx.interrupt.status = 0;
     psx.interrupt.mask = 0;
@@ -113,6 +111,7 @@ psx_reset_memory(void)
 void
 psx_setup(const char *bios_path)
 {
+    dma_setup();
     exp2_setup();
     r3000_setup();
     spu_setup();
@@ -149,13 +148,17 @@ psx_shutdown(void)
 void
 psx_soft_reset(void)
 {
+    dma_soft_reset();
     r3000_soft_reset();
 }
 
 void
 psx_hard_reset(void)
 {
+    dma_hard_reset();
     r3000_hard_reset();
+    spu_hard_reset();
+
     psx_reset_memory();
 }
 
@@ -269,9 +272,7 @@ psx_read_memory32(uint32_t address)
     }
 
     if (between(address, PSX_DMA_START, PSX_DMA_END)) {
-        printf("psx: info: read from dma register at 0x%08x\n", address);
-        PANIC;
-        return 0;
+        return dma_read32(address);
     }
 
     if (between(address, PSX_TIMER_START, PSX_TIMER_END)) {
@@ -396,8 +397,7 @@ psx_write_memory32(uint32_t address, uint32_t value)
     }
 
     if (between(address, PSX_DMA_START, PSX_DMA_END)) {
-        printf("psx: info: write to dma register at 0x%08x\n", address);
-        PANIC;
+        dma_write32(address, value);
         return;
     }
 
@@ -451,6 +451,14 @@ psx_debug_read_memory32(uint32_t address)
     if (between(address, PSX_RAM_START, PSX_RAM_END)) {
         offset = (address - PSX_RAM_START) / sizeof(uint32_t);
         return ((uint32_t *)psx.ram)[offset];
+    }
+
+    if (address == PSX_INTERRUPT_STATUS) {
+        return psx.interrupt.status;
+    }
+
+    if (address == PSX_INTERRUPT_MASK) {
+        return psx.interrupt.mask;
     }
 
     if (between(address, PSX_BIOS_START, PSX_BIOS_END)) {

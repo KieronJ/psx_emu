@@ -10,6 +10,7 @@ LDFLAGS = -lgcc -lSDL2 -lopengl32
 BINARY = psx_emu
 
 SOURCES = \
+	src/dma.c \
 	src/exp2.c \
 	src/gui.cpp \
 	src/main.c \
@@ -21,7 +22,7 @@ SOURCES = \
 	src/util.c \
 	src/window.c
 
-SOURCES += src/gl3w/gl3w.c 
+SOURCES += src/gl3w/gl3w.c
 
 SOURCES += \
 	src/imgui/imgui.cpp \

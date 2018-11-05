@@ -8,6 +8,9 @@
 #define PSX_RAM_SIZE    MEGABYTES(2)
 #define PSX_BIOS_SIZE   KILOBYTES(512)
 
+#define PSX_INTERRUPT_STATUS    0x1f801070
+#define PSX_INTERRUPT_MASK      0x1f801074
+
 enum psx_interrupt {
     PSX_INTERRUPT_VBLANK = 0x1,
     PSX_INTERRUPT_GPU = 0x2,
