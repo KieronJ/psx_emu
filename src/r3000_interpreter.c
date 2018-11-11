@@ -126,7 +126,7 @@ r3000_interpreter_addi(uint32_t instruction)
 
     result = s + imm;
 
-    if (overflow32(s, imm, result)) {
+    if (overflow_u32(s, imm, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
 
@@ -736,7 +736,7 @@ r3000_interpreter_add(uint32_t instruction)
 
     result = s + t;
 
-    if (overflow32(s, t, result)) {
+    if (overflow_u32(s, t, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
 
@@ -770,7 +770,7 @@ r3000_interpreter_sub(uint32_t instruction)
 
     result = s - t;
 
-    if (overflow32(s, t, result)) {
+    if (overflow_u32(s, t, result)) {
         r3000_exception(R3000_EXCEPTION_OVERFLOW);
     }
 

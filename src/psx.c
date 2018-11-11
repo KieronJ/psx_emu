@@ -166,6 +166,8 @@ void
 psx_step(void)
 {
     r3000_interpreter_execute();
+    spu_step();
+    spu_step();
 }
 
 void

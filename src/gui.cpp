@@ -401,11 +401,14 @@ gui_render_debug_interrupts(void)
 static void
 gui_render_debug_cpu(void)
 {
+    ImGuiWindowFlags flags;
+
+    flags = ImGuiWindowFlags_AlwaysAutoResize;
+
     gui_state.step = false;
     gui_state.cont_prev = gui_state.cont;
 
-    ImGui::Begin("CPU", &gui_state.debug_cpu,
-                 ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("CPU", &gui_state.debug_cpu, flags);
 
     ImGui::BeginGroup();
     gui_render_debug_cpu_actions();

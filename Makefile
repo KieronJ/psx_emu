@@ -18,6 +18,7 @@ SOURCES = \
 	src/r3000.c \
 	src/r3000_disassembler.c \
 	src/r3000_interpreter.c \
+	src/rb.c \
 	src/spu.c \
 	src/util.c \
 	src/window.c

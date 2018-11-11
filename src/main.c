@@ -18,6 +18,8 @@ main(int argc, char **argv)
 
     psx_setup(argv[1]);
 
+    window_audio_pause(false);
+
     for (;;) {
         if (gui_should_continue()) {
             psx_run_frame();
