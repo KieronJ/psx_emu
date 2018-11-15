@@ -144,9 +144,9 @@ spu_voice_adsr_step(const struct spu_voice *voice)
         return -8;
     case SPU_VOICE_STATE_SUSTAIN:
         if (spu_voice_adsr_direction(voice) == SPU_VOICE_ADSR_DIRECTION_INCREASE) {
-            return 7 - ((voice->adsr & SPU_VOICE_SUSTAIN_STEP) >> 26);
+            return 7 - ((voice->adsr & SPU_VOICE_SUSTAIN_STEP) >> 22);
         } else {
-            return -8 + ((voice->adsr & SPU_VOICE_SUSTAIN_STEP) >> 26);
+            return -8 + ((voice->adsr & SPU_VOICE_SUSTAIN_STEP) >> 22);
         }
     case SPU_VOICE_STATE_RELEASE:
         return -8;
@@ -304,7 +304,6 @@ spu_voice_key_on(struct spu_voice *voice)
     voice->adsr_current_volume = 0;
     voice->adsr_cycles = 0;
     voice->current_address = voice->start_address;
-    voice->repeat_address = voice->start_address;
 }
 
 static void
